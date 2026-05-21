@@ -777,7 +777,7 @@
   }
 
   function renderBasket() {
-    if (!basketEl || !sumMarketEl || !sumOfferEl || !payloadEl) return;
+    if (!basketEl || !sumMarketEl || !sumOfferEl) return;
 
     basketEl.innerHTML = "";
 
@@ -834,20 +834,22 @@
       quickOfferEl.textContent = `Offer total: ${fmtEUR.format(offerTotal)}`;
     }
 
-    payloadEl.textContent = JSON.stringify(
-      {
-        source: "shopify-buylist-poc",
-        currency: "EUR",
-        buyRatio: BUY_RATIO,
-        lines: rows,
-        totals: {
-          market: Number(marketTotal.toFixed(2)),
-          offer: Number(offerTotal.toFixed(2))
-        }
-      },
-      null,
-      2
-    );
+    if (payloadEl) {
+      payloadEl.textContent = JSON.stringify(
+        {
+          source: "shopify-buylist-poc",
+          currency: "EUR",
+          buyRatio: BUY_RATIO,
+          lines: rows,
+          totals: {
+            market: Number(marketTotal.toFixed(2)),
+            offer: Number(offerTotal.toFixed(2))
+          }
+        },
+        null,
+        2
+      );
+    }
 
     if (vendorEmailNoteEl) {
       vendorEmailNoteEl.textContent = `Vendor email: ${getVendorEmail()}`;
