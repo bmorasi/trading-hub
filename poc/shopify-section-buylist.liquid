@@ -1,0 +1,137 @@
+{% comment %}
+  Shopify Section POC: Pokemon Buylist
+  Upload assets:
+  - assets/buylist-poc.css
+  - assets/buylist-poc.js
+{% endcomment %}
+
+{{ 'buylist-poc.css' | asset_url | stylesheet_tag }}
+
+<div class="grain"></div>
+<div class="buylist-shell" data-buylist-root data-vendor-email="{{ section.settings.vendor_email | escape }}">
+  <header class="hero">
+    <p class="eyebrow">Card Binder Trade Desk</p>
+    <h1>{{ section.settings.heading }}</h1>
+    <p class="hero-copy">{{ section.settings.subheading }}</p>
+    <div class="hero-seal" aria-hidden="true">Trading Hub</div>
+  </header>
+
+  <section class="panel search-panel">
+    <label for="card-search" class="label">Search cards</label>
+    <div class="search-row">
+      <input id="card-search" type="text" placeholder="Filter shown cards: Charizard, Pikachu, Mew..." autocomplete="off" />
+      <select id="set-filter" aria-label="Filter by set">
+        <option value="">All sets</option>
+      </select>
+      <button id="clear-search" type="button" class="ghost">Clear</button>
+    </div>
+    <div class="row-inline">
+      <p class="hint">Images: low.webp from TCGDex assets for fastest load.</p>
+      <p id="catalog-count" class="hint count">0 shown of 0</p>
+    </div>
+    <div class="sort-row">
+      <label for="sort-field" class="sr-label">Sort</label>
+      <select id="sort-field" aria-label="Sort field">
+        <option value="name">Card Name</option>
+        <option value="dex">Pokedex Number</option>
+        <option value="price">Price</option>
+        <option value="set">Set Name</option>
+      </select>
+      <select id="sort-direction" aria-label="Sort direction">
+        <option value="asc">Ascending</option>
+        <option value="desc">Descending</option>
+      </select>
+      <label class="group-toggle" for="group-by-set">
+        <input id="group-by-set" type="checkbox" />
+        Group by Sets
+      </label>
+    </div>
+    <div class="action-row">
+      <button id="open-cart" type="button" class="open-cart-btn">Open Buylist (0)</button>
+      <span id="quick-offer" class="quick-offer">Offer total: €0.00</span>
+    </div>
+    <div id="search-status" class="status" aria-live="polite"></div>
+    <div id="search-results" class="results-shell" aria-live="polite"></div>
+    <div id="results-sentinel" class="results-sentinel" aria-hidden="true"></div>
+  </section>
+</div>
+
+<div id="cart-overlay" class="cart-overlay hidden"></div>
+<aside id="cart-drawer" class="cart-drawer hidden" aria-hidden="true">
+  <section class="panel basket-panel">
+    <div class="basket-head">
+      <h2>Buylist Basket</h2>
+      <div class="basket-head-actions">
+        <button id="reset-basket" type="button" class="ghost">Reset</button>
+        <button id="close-cart" type="button" class="ghost">Close</button>
+      </div>
+    </div>
+    <ul id="basket-items" class="basket-items"></ul>
+    <div class="summary">
+      <div><span>Estimated Market</span><strong id="sum-market">€0.00</strong></div>
+      <div><span>Offer (85%)</span><strong id="sum-offer">€0.00</strong></div>
+    </div>
+    <div class="email-panel">
+      <label for="seller-name">Seller Name</label>
+      <input id="seller-name" type="text" placeholder="Full name" />
+      <label for="seller-email">Seller Email</label>
+      <input id="seller-email" type="email" placeholder="seller@example.com" />
+      <label for="offer-spec">Specification</label>
+      <textarea id="offer-spec" rows="4" placeholder="Condition notes, shipping details, preferred payout, etc."></textarea>
+    </div>
+    <button id="submit-buylist" class="submit-btn" type="button">Generate POC Request</button>
+    <button id="send-offer-email" class="submit-btn secondary" type="button">Draft Offer Email</button>
+    <pre id="payload-preview" class="payload"></pre>
+    <p id="vendor-email-note" class="hint"></p>
+  </section>
+</aside>
+
+<template id="result-item-template">
+  <li class="result-item">
+    <div class="result-media">
+      <img class="result-image" alt="" loading="lazy" />
+      <div class="price-row">
+        <span class="market"></span>
+        <span class="offer"></span>
+      </div>
+    </div>
+    <div class="result-main">
+      <h3 class="result-title"></h3>
+      <p class="result-meta"></p>
+    </div>
+    <button class="add-btn" type="button">Add</button>
+  </li>
+</template>
+
+<script src="{{ 'buylist-poc.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Pokemon Buylist POC",
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Pokemon Buylist"
+    },
+    {
+      "type": "textarea",
+      "id": "subheading",
+      "label": "Subheading",
+      "default": "Quick estimate based on market value with an 85% buy-in rule."
+    },
+    {
+      "type": "text",
+      "id": "vendor_email",
+      "label": "Vendor Email",
+      "default": "vendor@example.com"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Pokemon Buylist POC"
+    }
+  ]
+}
+{% endschema %}
