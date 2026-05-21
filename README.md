@@ -10,22 +10,22 @@ This workspace contains a Proof of Concept for a Shopify buylist tool that:
 
 ## Files
 
-- `poc/index.html`: Standalone preview page
-- `poc/styles.css`: Card-binder-inspired styling
-- `poc/app.js`: TCGDex API adapter, cache, pricing, and UI logic
-- `poc/shopify-section-buylist.liquid`: Shopify section scaffold
+- `index.html`: Standalone preview page
+- `styles.css`: Card-binder-inspired styling
+- `app.js`: TCGDex API adapter, cache, pricing, and UI logic
+- `shopify-section-buylist.liquid`: Shopify section scaffold
 
 ## Run locally
 
-Open `poc/index.html` in a browser.
+Open `index.html` in a browser.
 
 If your browser blocks CORS for local file access, run a small static server in this folder and open the served URL.
 
 ## Shopify integration notes
 
-1. Upload `poc/styles.css` as `assets/buylist-poc.css`
-2. Upload `poc/app.js` as `assets/buylist-poc.js`
-3. Add `poc/shopify-section-buylist.liquid` into your theme `sections` folder
+1. Upload `styles.css` as `assets/buylist-poc.css`
+2. Upload `app.js` as `assets/buylist-poc.js`
+3. Add `shopify-section-buylist.liquid` into your theme `sections` folder
 4. Add the section in Theme Editor
 
 ## API usage strategy (minimal calls)
@@ -38,4 +38,4 @@ If your browser blocks CORS for local file access, run a small static server in 
 
 ## Important
 
-TCGDex data shape may vary by language/endpoint version. The adapter in `poc/app.js` includes safe fallbacks for extracting market values.
+TCGDex data shape may vary by language/endpoint version. The adapter in `app.js` includes safe fallbacks for extracting market values.
