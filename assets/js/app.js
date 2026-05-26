@@ -48,6 +48,7 @@
   const sortFieldEl = document.getElementById("sort-field");
   const sortDirectionEl = document.getElementById("sort-direction");
   const groupBySetEl = document.getElementById("group-by-set");
+  const sortRowEl = document.getElementById("card-sort-row");
   const clearSearchBtn = document.getElementById("clear-search");
   const changeSetBtn = document.getElementById("change-set");
   const openCartBtn = document.getElementById("open-cart");
@@ -736,6 +737,9 @@
     if (changeSetBtn) {
       changeSetBtn.classList.toggle("hidden", !hasSet);
     }
+    if (sortRowEl) {
+      sortRowEl.classList.toggle("hidden", !hasSet);
+    }
     if (searchInput) {
       searchInput.placeholder = hasSet
         ? "Search cards in selected set..."
@@ -1141,7 +1145,13 @@
     sumCreditEl.textContent = fmtEUR.format(creditTotal);
 
     if (openCartBtn) {
-      openCartBtn.textContent = `Open Basket (${basketItemCount()})`;
+      const countText = `Basket (${basketItemCount()})`;
+      const labelEl = openCartBtn.querySelector(".floating-cart-label");
+      if (labelEl) {
+        labelEl.textContent = countText;
+      } else {
+        openCartBtn.textContent = countText;
+      }
     }
     if (quickOfferEl) {
       quickOfferEl.textContent = `Cash total: ${fmtEUR.format(cashTotal)}`;

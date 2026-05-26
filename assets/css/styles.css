@@ -248,7 +248,7 @@ h1, h2 {
 
 .action-row {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: 10px;
   margin-top: 8px;
@@ -294,6 +294,47 @@ button.secondary {
 
 .open-cart-btn {
   min-width: 180px;
+}
+
+.floating-cart-btn {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  min-width: 148px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 10px 14px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32);
+  background: linear-gradient(120deg, #d98013, #ff9b26);
+}
+
+.floating-cart-btn:hover {
+  transform: translateY(-1px);
+}
+
+.floating-cart-icon {
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+}
+
+.floating-cart-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.floating-cart-label {
+  font-weight: 800;
+  letter-spacing: 0.01em;
 }
 
 .quick-offer {
@@ -825,6 +866,17 @@ button:hover {
   #set-filter,
   .open-cart-btn {
     width: 100%;
+  }
+
+  .floating-cart-btn {
+    right: 12px;
+    bottom: 12px;
+    min-width: 0;
+    padding: 10px 12px;
+  }
+
+  .floating-cart-label {
+    font-size: 0.9rem;
   }
 
   .set-grid {

@@ -34,7 +34,7 @@
       <p class="hint">Images: low.webp from TCGDex assets for fastest load.</p>
       <p id="catalog-count" class="hint count">0 shown of 0</p>
     </div>
-    <div class="sort-row">
+    <div id="card-sort-row" class="sort-row">
       <label for="sort-field" class="sr-label">Sort</label>
       <select id="sort-field" aria-label="Sort field">
         <option value="name">Card Name</option>
@@ -52,7 +52,6 @@
       </label>
     </div>
     <div class="action-row">
-      <button id="open-cart" type="button" class="open-cart-btn">Open Basket (0)</button>
       <span id="quick-offer" class="quick-offer">Cash total: €0.00</span>
     </div>
     <div id="search-status" class="status" aria-live="polite"></div>
@@ -111,6 +110,17 @@
     <p id="vendor-email-note" class="hint"></p>
   </section>
 </aside>
+
+<button id="open-cart" type="button" class="floating-cart-btn" aria-label="Open basket">
+  <span class="floating-cart-icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24" focusable="false">
+      <path d="M3 5h2l2.2 10.2A2 2 0 0 0 9.16 17h8.55a2 2 0 0 0 1.95-1.55L21 8H7.1"></path>
+      <circle cx="10" cy="20" r="1.6"></circle>
+      <circle cx="18" cy="20" r="1.6"></circle>
+    </svg>
+  </span>
+  <span class="floating-cart-label">Basket (0)</span>
+</button>
 
 <template id="result-item-template">
   <li class="result-item">
