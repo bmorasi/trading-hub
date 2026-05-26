@@ -1,11 +1,14 @@
 {% comment %}
   Shopify Section POC: Pokemon Buylist
   Upload assets:
-  - assets/buylist-poc.css
-  - assets/buylist-poc.js
+  - buylist-styles.css
+  - buylist-core-catalog-helpers.js
+  - buylist-core-pricing.js
+  - buylist-ui-basket.js
+  - buylist-app.js
 {% endcomment %}
 
-{{ 'buylist-poc.css' | asset_url | stylesheet_tag }}
+{{ 'buylist-styles.css' | asset_url | stylesheet_tag }}
 
 <div class="grain"></div>
 <div class="buylist-shell" data-buylist-root data-vendor-email="{{ section.settings.vendor_email | escape }}">
@@ -13,18 +16,20 @@
     <p class="eyebrow">Card Binder Trade Desk</p>
     <h1>{{ section.settings.heading }}</h1>
     <p class="hero-copy">{{ section.settings.subheading }}</p>
-    <div class="hero-seal" aria-hidden="true">Trading Hub</div>
+    <div class="hero-seal" aria-hidden="true">CB Flow</div>
   </header>
 
   <section class="panel search-panel">
-    <label for="card-search" class="label">Search cards</label>
+    <label for="card-search" class="label">Search sets or cards</label>
     <div class="search-row">
-      <input id="card-search" type="text" placeholder="Filter shown cards: Charizard, Pikachu, Mew..." autocomplete="off" />
+      <input id="card-search" type="text" placeholder="Search sets first, then cards in the selected set..." autocomplete="off" />
       <select id="set-filter" aria-label="Filter by set">
         <option value="">All sets</option>
       </select>
       <button id="clear-search" type="button" class="ghost">Clear</button>
+      <button id="change-set" type="button" class="ghost hidden">Back to Sets</button>
     </div>
+    <div id="set-grid" class="set-grid" aria-live="polite"></div>
     <div class="row-inline">
       <p class="hint">Images: low.webp from TCGDex assets for fastest load.</p>
       <p id="catalog-count" class="hint count">0 shown of 0</p>
@@ -47,10 +52,28 @@
       </label>
     </div>
     <div class="action-row">
-      <button id="open-cart" type="button" class="open-cart-btn">Open Buylist (0)</button>
-      <span id="quick-offer" class="quick-offer">Offer total: €0.00</span>
+      <button id="open-cart" type="button" class="open-cart-btn">Open Basket (0)</button>
+      <span id="quick-offer" class="quick-offer">Cash total: €0.00</span>
     </div>
     <div id="search-status" class="status" aria-live="polite"></div>
+    <div id="loading-visual" class="loading-visual hidden" aria-live="polite" aria-busy="false">
+      <div class="loading-head">
+        <span class="loading-spinner" aria-hidden="true"></span>
+        <strong id="loading-label">Loading catalog...</strong>
+        <span id="loading-percent" class="loading-percent">0%</span>
+      </div>
+      <div class="loading-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="loading-bar" class="loading-bar"></div>
+      </div>
+      <div class="loading-skeleton-grid" aria-hidden="true">
+        <div class="loading-skeleton-card"></div>
+        <div class="loading-skeleton-card"></div>
+        <div class="loading-skeleton-card"></div>
+        <div class="loading-skeleton-card"></div>
+        <div class="loading-skeleton-card"></div>
+        <div class="loading-skeleton-card"></div>
+      </div>
+    </div>
     <div id="search-results" class="results-shell" aria-live="polite"></div>
     <div id="results-sentinel" class="results-sentinel" aria-hidden="true"></div>
   </section>
@@ -60,7 +83,7 @@
 <aside id="cart-drawer" class="cart-drawer hidden" aria-hidden="true">
   <section class="panel basket-panel">
     <div class="basket-head">
-      <h2>Buylist Basket</h2>
+      <h2>Purchase Basket</h2>
       <div class="basket-head-actions">
         <button id="reset-basket" type="button" class="ghost">Reset</button>
         <button id="close-cart" type="button" class="ghost">Close</button>
@@ -68,19 +91,23 @@
     </div>
     <ul id="basket-items" class="basket-items"></ul>
     <div class="summary">
-      <div><span>Estimated Market</span><strong id="sum-market">€0.00</strong></div>
-      <div><span>Offer (85%)</span><strong id="sum-offer">€0.00</strong></div>
+      <div><span>Estimated market value</span><strong id="sum-market">€0.00</strong></div>
+      <div><span>Condition-adjusted value</span><strong id="sum-value">€0.00</strong></div>
+      <div><span>Cash payout</span><strong id="sum-cash">€0.00</strong></div>
+      <div><span>Store credit payout</span><strong id="sum-credit">€0.00</strong></div>
     </div>
     <div class="email-panel">
-      <label for="seller-name">Seller Name</label>
+      <label for="seller-name">Customer Name</label>
       <input id="seller-name" type="text" placeholder="Full name" />
-      <label for="seller-email">Seller Email</label>
-      <input id="seller-email" type="email" placeholder="seller@example.com" />
+      <label for="seller-email">Customer Email</label>
+      <input id="seller-email" type="email" placeholder="customer@example.com" />
+      <p id="photo-requirement-note" class="hint">Upload photos directly on each basket card worth €5 or more.</p>
       <label for="offer-spec">Specification</label>
-      <textarea id="offer-spec" rows="4" placeholder="Condition notes, shipping details, preferred payout, etc."></textarea>
+      <textarea id="offer-spec" rows="4" placeholder="Condition notes, shipping details, payout preference, etc."></textarea>
     </div>
-    <button id="submit-buylist" class="submit-btn" type="button">Generate POC Request</button>
-    <button id="send-offer-email" class="submit-btn secondary" type="button">Draft Offer Email</button>
+    <div class="email-actions">
+      <button id="send-offer-email" class="submit-btn" type="button">Send Purchase Request to CB</button>
+    </div>
     <p id="vendor-email-note" class="hint"></p>
   </section>
 </aside>
@@ -102,7 +129,10 @@
   </li>
 </template>
 
-<script src="{{ 'buylist-poc.js' | asset_url }}" defer></script>
+<script src="{{ 'buylist-core-catalog-helpers.js' | asset_url }}" defer></script>
+<script src="{{ 'buylist-core-pricing.js' | asset_url }}" defer></script>
+<script src="{{ 'buylist-ui-basket.js' | asset_url }}" defer></script>
+<script src="{{ 'buylist-app.js' | asset_url }}" defer></script>
 
 {% schema %}
 {
@@ -118,7 +148,7 @@
       "type": "textarea",
       "id": "subheading",
       "label": "Subheading",
-      "default": "Quick estimate based on market value with an 85% buy-in rule."
+      "default": "Value is based on Cardmarket and payout is calculated by card condition."
     },
     {
       "type": "text",

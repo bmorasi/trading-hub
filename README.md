@@ -11,8 +11,11 @@ This workspace contains a Proof of Concept for a Shopify buylist tool that:
 ## Files
 
 - `index.html`: Standalone preview page
-- `styles.css`: Card-binder-inspired styling
-- `app.js`: TCGDex API adapter, cache, pricing, and UI logic
+- `assets/css/styles.css`: Card-binder-inspired styling
+- `assets/js/app.js`: App orchestration and UI flow
+- `assets/js/core/catalog-helpers.js`: Catalog normalization and card image helpers
+- `assets/js/core/pricing.js`: Condition and pricing helpers
+- `assets/js/ui/basket-ui.js`: Basket row UI component builder
 - `shopify-section-buylist.liquid`: Shopify section scaffold
 
 ## Run locally
@@ -23,10 +26,13 @@ If your browser blocks CORS for local file access, run a small static server in 
 
 ## Shopify integration notes
 
-1. Upload `styles.css` as `assets/buylist-poc.css`
-2. Upload `app.js` as `assets/buylist-poc.js`
-3. Add `shopify-section-buylist.liquid` into your theme `sections` folder
-4. Add the section in Theme Editor
+1. Upload `assets/css/styles.css` as `buylist-styles.css`
+2. Upload `assets/js/core/catalog-helpers.js` as `buylist-core-catalog-helpers.js`
+3. Upload `assets/js/core/pricing.js` as `buylist-core-pricing.js`
+4. Upload `assets/js/ui/basket-ui.js` as `buylist-ui-basket.js`
+5. Upload `assets/js/app.js` as `buylist-app.js`
+6. Add `shopify-section-buylist.liquid` into your theme `sections` folder
+7. Add the section in Theme Editor
 
 ## API usage strategy (minimal calls)
 
@@ -38,4 +44,4 @@ If your browser blocks CORS for local file access, run a small static server in 
 
 ## Important
 
-TCGDex data shape may vary by language/endpoint version. The adapter in `app.js` includes safe fallbacks for extracting market values.
+TCGDex data shape may vary by language/endpoint version. The adapter in `assets/js/app.js` includes safe fallbacks for extracting market values.
