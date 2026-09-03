@@ -14,12 +14,12 @@
   <div class="grain"></div>
   <div class="buylist-shell" data-buylist-root data-vendor-email="vendor@example.com">
     <header class="hero">
+      <img class="brand-logo" src="./assets/card-binder-logo.avif" alt="Card-Binder.com" />
       <p class="eyebrow">Card Binder Trade Desk</p>
       <h1>Pokemon Buylist</h1>
       <p class="hero-copy">
         Value is based on Cardmarket and payout is calculated by card condition.
       </p>
-      <div class="hero-seal" aria-hidden="true">CB Flow</div>
     </header>
 
     <section class="panel search-panel">
@@ -58,7 +58,7 @@
         <span id="quick-offer" class="quick-offer">Cash total: €0.00</span>
       </div>
       <div id="search-status" class="status" aria-live="polite"></div>
-      <div id="loading-visual" class="loading-visual hidden" aria-live="polite" aria-busy="false">
+      <div id="loading-visual" class="loading-visual" aria-live="polite" aria-busy="true">
         <div class="loading-head">
           <span class="loading-spinner" aria-hidden="true"></span>
           <strong id="loading-label">Loading catalog...</strong>
@@ -109,6 +109,7 @@
       </div>
       <div class="email-actions">
         <button id="send-offer-email" class="submit-btn" type="button">Send Purchase Request to CB</button>
+        <button id="generate-pdf-report" class="ghost" type="button">Generate PDF Report</button>
       </div>
       <p id="vendor-email-note" class="hint"></p>
     </section>
@@ -142,6 +143,7 @@
     </li>
   </template>
 
+  <script type="module" src="./assets/js/tcgdx-client.js"></script>
   <script src="./assets/js/core/catalog-helpers.js"></script>
   <script src="./assets/js/core/pricing.js"></script>
   <script src="./assets/js/ui/basket-ui.js"></script>

@@ -112,6 +112,12 @@
       card?.pricing?.cardmarket?.["avg-holo"],
       card?.pricing?.cardmarket?.["trend-holo"],
       card?.pricing?.cardmarket?.["low-holo"],
+      card?.pricing?.tcgplayer?.holo?.marketPrice,
+      card?.pricing?.tcgplayer?.holo?.lowPrice,
+      card?.pricing?.tcgplayer?.normal?.marketPrice,
+      card?.pricing?.tcgplayer?.normal?.lowPrice,
+      card?.pricing?.tcgplayer?.marketPrice,
+      card?.pricing?.tcgplayer?.lowPrice,
       card?.cardmarket?.prices?.averageSellPrice,
       card?.cardmarket?.prices?.trendPrice,
       card?.cardmarket?.avg,
@@ -132,7 +138,12 @@
   }
 
   function extractPricingUnit(card) {
-    return card?.pricing?.cardmarket?.unit || card?.prices?.cardmarket?.unit || "EUR";
+    return (
+      card?.pricing?.cardmarket?.unit ||
+      card?.pricing?.tcgplayer?.unit ||
+      card?.prices?.cardmarket?.unit ||
+      "EUR"
+    );
   }
 
   window.BuylistCatalogHelpers = {

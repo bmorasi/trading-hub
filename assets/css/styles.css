@@ -57,6 +57,13 @@ body {
   box-shadow: 0 10px 30px rgba(53, 26, 12, 0.13);
 }
 
+.brand-logo {
+  display: block;
+  width: min(430px, 82vw);
+  height: auto;
+  margin: 0 0 22px;
+}
+
 .hero::before,
 .hero::after {
   content: "";
@@ -801,6 +808,26 @@ button:hover {
   margin-top: 12px;
   display: grid;
   gap: 8px;
+}
+
+.offer-report-legal {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.offer-report-signature {
+  margin-top: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.offer-report-signature-line {
+  border-bottom: 1px solid currentColor;
+  min-height: 24px;
+  opacity: 0.8;
 }
 
 .summary > div {

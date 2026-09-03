@@ -71,6 +71,7 @@
   const sumCreditEl = document.getElementById("sum-credit");
   const resetBasketBtn = document.getElementById("reset-basket");
   const sendOfferEmailBtn = document.getElementById("send-offer-email");
+  const generatePdfReportBtn = document.getElementById("generate-pdf-report");
   const sellerNameEl = document.getElementById("seller-name");
   const sellerEmailEl = document.getElementById("seller-email");
   const photoRequirementNoteEl = document.getElementById("photo-requirement-note");
@@ -225,6 +226,7 @@
 
     const overlay = document.createElement("div");
     overlay.className = "condition-modal-overlay hidden";
+    overlay.hidden = true;
     overlay.setAttribute("aria-hidden", "true");
 
     const dialog = document.createElement("div");
@@ -243,7 +245,11 @@
     closeBtn.type = "button";
     closeBtn.className = "ghost condition-modal-close";
     closeBtn.textContent = "Close";
-    closeBtn.addEventListener("click", () => closeConditionMatrixModal());
+    closeBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeConditionMatrixModal();
+    });
 
     head.append(title, closeBtn);
 
@@ -280,6 +286,10 @@
     dialog.append(head, tableWrap, conditionModalDefectsEl);
     overlay.appendChild(dialog);
 
+    dialog.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+
     overlay.addEventListener("click", (event) => {
       if (event.target === overlay) {
         closeConditionMatrixModal();
@@ -303,13 +313,17 @@
       conditionModalDefectsEl.textContent = `${conditionLabel(normalized)} defects: ${defectsForCondition(normalized)}`;
     }
 
+    modal.hidden = false;
     modal.classList.remove("hidden");
+    modal.style.display = "grid";
     modal.setAttribute("aria-hidden", "false");
   }
 
   function closeConditionMatrixModal() {
     if (!conditionModalEl) return;
+    conditionModalEl.hidden = true;
     conditionModalEl.classList.add("hidden");
+    conditionModalEl.style.display = "none";
     conditionModalEl.setAttribute("aria-hidden", "true");
   }
 
@@ -370,24 +384,36 @@
     const setId = setItem?.id || "";
     const serieId = deriveSerieId(setId);
 
+    function addAssetVariants(src) {
+      if (!src) return;
+
+      const trimmed = String(src).trim();
+      if (!trimmed) return;
+
+      const isFileWithExtension = /\.(png|webp|jpg|jpeg|svg)(\?.*)?$/i.test(trimmed);
+      if (isFileWithExtension) {
+        candidates.push(trimmed);
+        return;
+      }
+
+      candidates.push(`${trimmed}.png`);
+      candidates.push(`${trimmed}.webp`);
+      candidates.push(`${trimmed}.jpg`);
+      candidates.push(`${trimmed}/logo.png`);
+      candidates.push(`${trimmed}/logo.webp`);
+      candidates.push(`${trimmed}/symbol.png`);
+      candidates.push(`${trimmed}/symbol.webp`);
+    }
+
     const fromApi = [setItem?.symbol, setItem?.logo].filter(Boolean);
     for (const src of fromApi) {
-      const base = toAssetBase(src);
-      candidates.push(src);
-      if (base) {
-        candidates.push(`${base}/low.webp`);
-        candidates.push(`${base}/high.webp`);
-        candidates.push(`${base}/symbol.png`);
-        candidates.push(`${base}/logo.png`);
-      }
+      addAssetVariants(src);
     }
 
     if (serieId && setId) {
       const root = `${ASSET_BASE}/${serieId}/${setId}`;
-      candidates.push(`${root}/symbol.webp`);
-      candidates.push(`${root}/symbol.png`);
-      candidates.push(`${root}/logo.webp`);
-      candidates.push(`${root}/logo.png`);
+      addAssetVariants(`${root}/symbol`);
+      addAssetVariants(`${root}/logo`);
     }
 
     return [...new Set(candidates.filter(Boolean))];
@@ -573,8 +599,29 @@
         unit: extractPricingUnit(json),
         imageCandidates: buildImageCandidates(json, ASSET_BASE),
         image: buildAssetImage(json, ASSET_BASE),
-        priceResolved: true
+        priceResolved: true,
+        source: "tcgdex"
       };
+
+      const sdkCard = typeof window.getTCGDXCard === "function" ? await window.getTCGDXCard(cardId) : null;
+      if (sdkCard) {
+        const sdkImageUrl = typeof sdkCard?.getImageURL === "function" ? sdkCard.getImageURL("low", "webp") : sdkCard?.image || "";
+
+        detail.name = sdkCard?.name || detail.name;
+        detail.set = sdkCard?.set || detail.set || {};
+        detail.setId = sdkCard?.set?.id || detail.setId || detail.set?.id || "";
+        detail.setName = sdkCard?.set?.name || detail.setName || detail.set?.name || "";
+        detail.image = sdkImageUrl || detail.image;
+        detail.imageCandidates = sdkImageUrl ? [sdkImageUrl] : detail.imageCandidates;
+        detail.market = extractMarketPrice(sdkCard) || detail.market;
+        detail.unit = extractPricingUnit(sdkCard) || detail.unit;
+        detail.pricing = {
+          ...(detail.pricing || {}),
+          ...(sdkCard?.pricing || {})
+        };
+        detail.source = "tcgdex-sdk";
+      }
+
       cardCache.set(cardId, { ts: now(), value: detail });
       cacheWrite(storageKey, detail);
       return detail;
@@ -1172,6 +1219,19 @@
       const detail = await getCardDetails(card.id);
       market = detail?.market || 0;
       card.priceResolved = true;
+
+      if (detail?.name) {
+        card.name = detail.name;
+      }
+      if (detail?.setId || detail?.set?.id) {
+        card.setId = detail.setId || detail.set?.id || card.setId;
+      }
+      if (detail?.setName || detail?.set?.name) {
+        card.setName = detail.setName || detail.set?.name || card.setName;
+      }
+      if (detail?.localId || detail?.number) {
+        card.localId = detail.localId || detail.number || card.localId;
+      }
       if (detail?.imageCandidates?.length) {
         card.imageCandidates = detail.imageCandidates;
       }
@@ -1248,6 +1308,18 @@
         card.priceResolved = true;
         if (!detail) return;
 
+        if (detail?.name) {
+          card.name = detail.name;
+        }
+        if (detail?.setId || detail?.set?.id) {
+          card.setId = detail.setId || detail.set?.id || card.setId;
+        }
+        if (detail?.setName || detail?.set?.name) {
+          card.setName = detail.setName || detail.set?.name || card.setName;
+        }
+        if (detail?.localId || detail?.number) {
+          card.localId = detail.localId || detail.number || card.localId;
+        }
         if (Number.isFinite(detail.market) && detail.market > 0) {
           card.market = detail.market;
           card.unit = detail.unit || card.unit;
@@ -1286,8 +1358,21 @@
           const key = cardDomKey(card);
           const nodes = resultsEl ? resultsEl.querySelectorAll(`[data-card-key="${key}"]`) : [];
           for (const node of nodes) {
+            const titleEl = node.querySelector(".result-title");
+            const metaEl = node.querySelector(".result-meta");
+            const imageEl = node.querySelector(".result-image");
             const marketEl = node.querySelector(".market");
             const offerEl = node.querySelector(".offer");
+
+            if (titleEl) {
+              titleEl.textContent = card.name || titleEl.textContent;
+            }
+            if (metaEl) {
+              metaEl.textContent = cardMeta(card);
+            }
+            if (imageEl) {
+              bindImageWithFallback(imageEl, card, node);
+            }
             if (!marketEl || !offerEl) continue;
             if (Number.isFinite(card.market) && card.market > 0) {
               marketEl.textContent = `Market: ${fmtEUR.format(card.market)}`;
@@ -1370,6 +1455,505 @@
       specification: offerSpecEl ? offerSpecEl.value.trim() : "",
       submittedAt: new Date().toISOString()
     };
+  }
+
+  function escapeReportHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function escapePdfText(value) {
+    return String(value || "")
+      .replace(/€/g, "EUR ")
+      .replace(/£/g, "GBP ")
+      .replace(/\$/g, "USD ")
+      .replace(/¥/g, "JPY ")
+      .normalize("NFKD")
+      .replace(/[^\x20-\x7E]/g, "?")
+      .replace(/\\/g, "\\\\")
+      .replace(/\(/g, "\\(")
+      .replace(/\)/g, "\\)")
+      .replace(/\u2028/g, " ")
+      .replace(/\u2029/g, " ");
+  }
+
+  function triggerFileDownload(filename, blob) {
+    const url = URL.createObjectURL(blob);
+    const href = document.createElement("a");
+    href.href = url;
+    href.download = filename;
+    document.body.appendChild(href);
+    href.click();
+    href.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 50);
+  }
+
+  async function loadPdfLogo() {
+    try {
+      const response = await fetch("./assets/card-binder-logo.avif");
+      const imageBlob = await response.blob();
+      const imageUrl = URL.createObjectURL(imageBlob);
+      const image = new Image();
+      image.src = imageUrl;
+      await image.decode();
+      URL.revokeObjectURL(imageUrl);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      canvas.getContext("2d").drawImage(image, 0, 0);
+      const pixelData = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+      const rgb = new Uint8Array(canvas.width * canvas.height * 3);
+      const alpha = new Uint8Array(canvas.width * canvas.height);
+      for (let pixel = 0, color = 0, mask = 0; pixel < pixelData.length; pixel += 4) {
+        rgb[color] = pixelData[pixel];
+        rgb[color + 1] = pixelData[pixel + 1];
+        rgb[color + 2] = pixelData[pixel + 2];
+        alpha[mask] = pixelData[pixel + 3];
+        color += 3;
+        mask += 1;
+      }
+      return {
+        rgb,
+        alpha,
+        width: canvas.width,
+        height: canvas.height
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function pdfStringToBytes(value) {
+    const bytes = new Uint8Array(value.length);
+    for (let index = 0; index < value.length; index += 1) {
+      bytes[index] = value.charCodeAt(index) & 0xff;
+    }
+    return bytes;
+  }
+
+  function bytesToPdfString(bytes) {
+    let value = "";
+    const chunkSize = 8192;
+    for (let start = 0; start < bytes.length; start += chunkSize) {
+      value += String.fromCharCode(...bytes.subarray(start, start + chunkSize));
+    }
+    return value;
+  }
+
+  function buildSimplePdf(rows, context, logo) {
+    const pageWidth = 842;
+    const pageHeight = 595;
+    const marginX = 36;
+    const marginRight = 36;
+    const contentWidth = pageWidth - marginX - marginRight;
+    const submittedDate = new Date(context.submittedAt || Date.now()).toLocaleString();
+    const totals = {
+      market: rows.reduce((sum, row) => sum + row.market * row.quantity, 0),
+      value: rows.reduce((sum, row) => sum + row.subtotalValue, 0),
+      cash: rows.reduce((sum, row) => sum + row.subtotalCash, 0),
+      credit: rows.reduce((sum, row) => sum + row.subtotalCredit, 0)
+    };
+    const colors = {
+      ink: "0.12 0.12 0.12",
+      muted: "0.35 0.35 0.35",
+      accent: "0.72 0.38 0.08",
+      white: "1 1 1",
+      header: "0.10 0.10 0.10",
+      pale: "0.97 0.95 0.91",
+      line: "0.78 0.75 0.69"
+    };
+    const pages = [];
+    let commands = "";
+    let y = pageHeight - 36;
+
+    const text = (value, x, baseline, size = 8, font = "F1", color = colors.ink) => {
+      commands += `${color} rg\nBT\n/${font} ${size} Tf\n${x} ${baseline} Td\n(${escapePdfText(value)}) Tj\nET\n`;
+    };
+    const wrapped = (value, maxChars) => {
+      const words = String(value || "").split(/\s+/);
+      const lines = [];
+      let line = "";
+      for (const word of words) {
+        if ((line + " " + word).trim().length > maxChars && line) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = (line + " " + word).trim();
+        }
+      }
+      if (line) lines.push(line);
+      return lines;
+    };
+    const rect = (x, top, width, height, fill, stroke = null) => {
+      commands += `${fill} rg\n${x} ${top - height} ${width} ${height} re f\n`;
+      if (stroke) {
+        commands += `${stroke} RG\n${x} ${top - height} ${width} ${height} re S\n`;
+      }
+    };
+    const line = (x1, y1, x2, y2, color = colors.line) => {
+      commands += `${color} RG\n${x1} ${y1} m ${x2} ${y2} l S\n`;
+    };
+    const finishPage = () => {
+      line(marginX, 28, pageWidth - marginRight, 28, colors.line);
+      text("Card-Binder.com | Preliminary purchase report", marginX, 17, 6.5, "F1", colors.muted);
+      pages.push(commands);
+      commands = "";
+    };
+    const startPage = (pageNumber) => {
+      y = pageHeight - 36;
+      if (logo) {
+        commands += `q\n128 0 0 22 ${marginX} ${y - 20} cm\n/Im1 Do\nQ\n`;
+        text("PURCHASE AGREEMENT", marginX + 144, y - 15, 20, "F2", colors.ink);
+      } else {
+        text("CARD-BINDER.com", marginX, y, 10, "F2", colors.accent);
+        text("PURCHASE AGREEMENT", marginX, y - 15, 20, "F2", colors.ink);
+      }
+      text(`Report ${pageNumber}`, pageWidth - 92, y - 2, 8, "F1", colors.muted);
+      line(marginX, y - 25, pageWidth - marginRight, y - 25, colors.accent);
+      y -= 42;
+    };
+
+    startPage(1);
+    rect(marginX, y, contentWidth, 52, colors.pale, colors.line);
+    text(`Seller: ${context.sellerName || "Not provided"}`, marginX + 12, y - 16, 9, "F2");
+    text(`Email: ${context.sellerEmail || "Not provided"}`, marginX + 12, y - 31, 8, "F1", colors.muted);
+    text(`Prepared: ${submittedDate}`, marginX + 350, y - 16, 9, "F2");
+    text(`Vendor: ${context.vendorEmail || "Not provided"}`, marginX + 350, y - 31, 8, "F1", colors.muted);
+    y -= 68;
+
+    const columns = [
+      ["#", 22], ["Card", 110], ["Set", 100], ["No.", 42], ["Condition", 58],
+      ["Market", 48], ["Value", 48], ["Cash", 48], ["Credit", 48], ["Qty", 28],
+      ["Value total", 58], ["Cash total", 58], ["Credit total", 58]
+    ];
+    const rowHeight = 28;
+    const headerHeight = 25;
+    const drawTableHeader = () => {
+      rect(marginX, y, contentWidth, headerHeight, colors.accent);
+      let x = marginX + 4;
+      for (const [label, width] of columns) {
+        text(label, x, y - 16, 6.5, "F2", "1 1 1");
+        x += width;
+      }
+      y -= headerHeight;
+    };
+    const drawRow = (row, index) => {
+      if (y < 94) {
+        finishPage();
+        startPage(pages.length + 1);
+        drawTableHeader();
+      }
+      if (index % 2 === 0) rect(marginX, y, contentWidth, rowHeight, colors.pale);
+      const values = [
+        String(index + 1), row.name, row.setName || "n/a", row.localId || "n/a", conditionLabel(row.condition),
+        fmtEUR.format(row.market), fmtEUR.format(row.value), fmtEUR.format(row.cash), fmtEUR.format(row.credit),
+        String(row.quantity), fmtEUR.format(row.subtotalValue), fmtEUR.format(row.subtotalCash), fmtEUR.format(row.subtotalCredit)
+      ];
+      let x = marginX + 4;
+      values.forEach((value, valueIndex) => {
+        const width = columns[valueIndex][1];
+        const valueLines = wrapped(value, Math.max(6, Math.floor(width / 4.3))).slice(0, 2);
+        valueLines.forEach((valueLine, lineIndex) => text(valueLine, x, y - 11 - (lineIndex * 9), 6.2, "F1"));
+        x += width;
+      });
+      line(marginX, y - rowHeight, pageWidth - marginRight, y - rowHeight);
+      y -= rowHeight;
+    };
+
+    drawTableHeader();
+    rows.forEach(drawRow);
+
+    if (y < 190) {
+      finishPage();
+      startPage(pages.length + 1);
+    }
+    const totalsTop = y - 8;
+    rect(marginX, totalsTop, 300, 88, colors.pale, colors.line);
+    text("PAYOUT SUMMARY", marginX + 12, totalsTop - 18, 9, "F2", colors.accent);
+    text(`Estimated market total: ${fmtEUR.format(totals.market)}`, marginX + 12, totalsTop - 35, 8, "F1");
+    text(`Condition-adjusted value: ${fmtEUR.format(totals.value)}`, marginX + 12, totalsTop - 48, 8, "F1");
+    text(`Cash payout: ${fmtEUR.format(totals.cash)}`, marginX + 12, totalsTop - 61, 8, "F2");
+    text(`Store credit: ${fmtEUR.format(totals.credit)}`, marginX + 12, totalsTop - 74, 8, "F2");
+
+    const legal = "This purchase report is a preliminary valuation and negotiation document only. The seller confirms that the cards listed are owned by the seller and that the listed conditions and photo evidence are accurate to the best of the seller's knowledge. Final acceptance, payout, and settlement remain subject to verification, inspection, and separate written agreement between both parties.";
+    const legalLines = wrapped(legal, 145);
+    let legalY = totalsTop - 18;
+    legalLines.forEach((legalLine, index) => text(legalLine, marginX + 330, legalY - (index * 10), 7, "F1", colors.muted));
+    const signatureTop = 112;
+    text("SIGNATURES", marginX, signatureTop, 9, "F2", colors.accent);
+    text("Seller signature", marginX, signatureTop - 18, 8, "F2");
+    line(marginX, signatureTop - 27, marginX + 250, signatureTop - 27, colors.ink);
+    text("Buyer / authorized representative", marginX + 330, signatureTop - 18, 8, "F2");
+    line(marginX + 330, signatureTop - 27, pageWidth - marginRight, signatureTop - 27, colors.ink);
+    text(`Specification notes: ${context.specification || "No additional specification provided."}`, marginX, signatureTop - 48, 7, "F1", colors.muted);
+    finishPage();
+
+    const fontObject = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+    const boldFontObject = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>";
+    const objects = [];
+    const pageIds = [];
+    const contentIds = [];
+    const catalogId = 1;
+    const pagesId = 2;
+    objects.push(null, null);
+    const fontId = objects.push(fontObject);
+    const boldFontId = objects.push(boldFontObject);
+    let imageId = null;
+    let imageMaskId = null;
+    if (logo) {
+      imageMaskId = objects.length + 1;
+      objects.push(`<< /Type /XObject /Subtype /Image /Width ${logo.width} /Height ${logo.height} /ColorSpace /DeviceGray /BitsPerComponent 8 /Length ${logo.alpha.length} >>\nstream\n${bytesToPdfString(logo.alpha)}\nendstream`);
+      imageId = objects.length + 1;
+      objects.push(`<< /Type /XObject /Subtype /Image /Width ${logo.width} /Height ${logo.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask ${imageMaskId} 0 R /Length ${logo.rgb.length} >>\nstream\n${bytesToPdfString(logo.rgb)}\nendstream`);
+    }
+    pages.forEach((pageContent) => {
+      contentIds.push(objects.length + 1);
+      objects.push(`<< /Length ${pageContent.length} >>\nstream\n${pageContent}\nendstream`);
+      pageIds.push(objects.length + 1);
+      objects.push(null);
+    });
+    const kids = pageIds.map((id) => `${id} 0 R`).join(" ");
+    objects[pagesId - 1] = `<< /Type /Pages /Kids [${kids}] /Count ${pageIds.length} >>`;
+    pageIds.forEach((pageId, index) => {
+      const imageResource = imageId ? ` /XObject << /Im1 ${imageId} 0 R >>` : "";
+      objects[pageId - 1] = `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${fontId} 0 R /F2 ${boldFontId} 0 R >>${imageResource} >> /Contents ${contentIds[index]} 0 R >>`;
+    });
+    objects[catalogId - 1] = `<< /Type /Catalog /Pages ${pagesId} 0 R >>`;
+
+    let pdf = "%PDF-1.4\n";
+    const offsets = [0];
+    objects.forEach((object, index) => {
+      offsets.push(pdf.length);
+      pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+    });
+    const byteXrefOffset = pdf.length;
+    pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+    for (let index = 1; index < offsets.length; index += 1) {
+      pdf += `${String(offsets[index]).padStart(10, "0")} 00000 n \n`;
+    }
+    pdf += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${byteXrefOffset}\n%%EOF`;
+    return new Blob([pdfStringToBytes(pdf)], { type: "application/pdf" });
+  }
+
+  async function savePurchasePdf(rows, context) {
+    const logo = await loadPdfLogo();
+    const blob = buildSimplePdf(rows, context, logo);
+    const fileName = `purchase-report-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.pdf`;
+    triggerFileDownload(fileName, blob);
+    window.__lastPurchasePdf = { fileName, size: blob.size };
+  }
+
+  function buildPrintableReportHtml(rows, context) {
+    const totalMarket = rows.reduce((sum, row) => sum + row.market * row.quantity, 0);
+    const totalValue = rows.reduce((sum, row) => sum + row.subtotalValue, 0);
+    const totalCash = rows.reduce((sum, row) => sum + row.subtotalCash, 0);
+    const totalCredit = rows.reduce((sum, row) => sum + row.subtotalCredit, 0);
+    const submittedDate = new Date(context.submittedAt || Date.now()).toLocaleString();
+    const lines = rows.map((row, index) => {
+      return `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${escapeReportHtml(row.name)}</td>
+          <td>${escapeReportHtml(row.setName || "n/a")}</td>
+          <td>${escapeReportHtml(row.localId || "n/a")}</td>
+          <td>${escapeReportHtml(conditionLabel(row.condition))}</td>
+          <td>${fmtEUR.format(row.market)}</td>
+          <td>${fmtEUR.format(row.value)}</td>
+          <td>${fmtEUR.format(row.cash)}</td>
+          <td>${fmtEUR.format(row.credit)}</td>
+          <td>${row.quantity}</td>
+          <td>${fmtEUR.format(row.subtotalValue)}</td>
+          <td>${fmtEUR.format(row.subtotalCash)}</td>
+          <td>${fmtEUR.format(row.subtotalCredit)}</td>
+        </tr>`;
+    }).join("");
+
+    return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Card Binder Purchase Agreement</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 24px;
+      color: #1c1c1c;
+      background: #ffffff;
+    }
+    .report {
+      max-width: 1100px;
+      margin: 0 auto;
+      border: 1px solid #d5d5d5;
+      padding: 28px;
+      background: #fffdf9;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      border-bottom: 2px solid #b86d17;
+      padding-bottom: 12px;
+      margin-bottom: 18px;
+    }
+    h1 {
+      margin: 0 0 4px;
+      font-size: 28px;
+      color: #623300;
+    }
+    .subtitle {
+      margin: 0;
+      color: #666;
+      font-size: 12px;
+    }
+    .doc-code {
+      text-align: right;
+      font-size: 12px;
+      color: #444;
+      line-height: 1.5;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+      font-size: 13px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th, td {
+      border: 1px solid #bcbcbc;
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #f3f1ec;
+    }
+    .totals {
+      margin-top: 16px;
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+      padding: 10px 0;
+      border-top: 1px solid #e0d8ca;
+    }
+    .legal {
+      margin-top: 18px;
+      font-size: 11px;
+      line-height: 1.6;
+      color: #404040;
+      border-top: 1px solid #e0d8ca;
+      padding-top: 12px;
+    }
+    .signature-grid {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      font-size: 12px;
+    }
+    .signature-line {
+      border-bottom: 1px solid #222;
+      min-height: 24px;
+      width: 100%;
+      margin-top: 4px;
+    }
+    .notes {
+      margin-top: 14px;
+      font-size: 12px;
+    }
+    @page {
+      size: A4 portrait;
+      margin: 12mm;
+    }
+  </style>
+</head>
+<body>
+  <div class="report">
+    <div class="header-row">
+      <div>
+        <h1>Card Binder Purchase Agreement</h1>
+        <p class="subtitle">Preliminary sale report and valuation sheet for trading cards.</p>
+      </div>
+      <div class="doc-code">
+        <div><strong>Prepared:</strong> ${escapeReportHtml(submittedDate)}</div>
+        <div><strong>Contact:</strong> ${escapeReportHtml(context.vendorEmail || "Not provided")}</div>
+      </div>
+    </div>
+
+    <div class="meta">
+      <div><strong>Seller / Customer Name:</strong> ${escapeReportHtml(context.sellerName || "Not provided")}</div>
+      <div><strong>Seller / Customer Email:</strong> ${escapeReportHtml(context.sellerEmail || "Not provided")}</div>
+      <div><strong>Buyer / Trade Desk:</strong> Card Binder Trade Desk</div>
+      <div><strong>Reference:</strong> ${escapeReportHtml(context.vendorEmail || "Not provided")}</div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Card</th>
+          <th>Set</th>
+          <th>Card No</th>
+          <th>Condition</th>
+          <th>Market</th>
+          <th>Value</th>
+          <th>Cash</th>
+          <th>Credit</th>
+          <th>Qty</th>
+          <th>Value Total</th>
+          <th>Cash Total</th>
+          <th>Credit Total</th>
+        </tr>
+      </thead>
+      <tbody>${lines}</tbody>
+    </table>
+
+    <div class="totals">
+      <div><strong>Estimated market total:</strong> ${fmtEUR.format(totalMarket)}</div>
+      <div><strong>Condition-adjusted value total:</strong> ${fmtEUR.format(totalValue)}</div>
+      <div><strong>Cash payout total:</strong> ${fmtEUR.format(totalCash)}</div>
+      <div><strong>Store credit payout total:</strong> ${fmtEUR.format(totalCredit)}</div>
+    </div>
+
+    <div class="legal">
+      <strong>Legal / disclosure notice:</strong>
+      This purchase report is a preliminary valuation and negotiation document only. The seller confirms that the cards listed in this report are owned by the seller, that the listed conditions and attached photo evidence are accurate to the best of the seller's knowledge, and that all information supplied is provided for review and pricing purposes only. No payment obligation, sale commitment, or transfer of ownership is created by this document unless and until the buyer confirms acceptance in writing. Final acceptance, payout, and settlement remain subject to verification, inspection, and separate written agreement between both parties.
+    </div>
+
+    <div class="signature-grid">
+      <div>
+        <strong>Seller signature</strong>
+        <div class="signature-line"></div>
+        <div class="notes">Printed name: ${escapeReportHtml(context.sellerName || "Not provided")}</div>
+      </div>
+      <div>
+        <strong>Buyer / authorized representative</strong>
+        <div class="signature-line"></div>
+        <div class="notes">Printed name: Card Binder Trade Desk</div>
+      </div>
+    </div>
+
+    <div class="legal">
+      <strong>Additional terms:</strong>
+      Any buyer request for additional inspection, photos, or authentication services will be handled separately. The report should be preserved with the transaction record. By signing below, the seller acknowledges the stated card condition, dispute process, and pricing summary as submitted for review.
+    </div>
+
+    <div class="notes"><strong>Specification notes:</strong> ${escapeReportHtml(context.specification || "No additional specification provided.")}</div>
+  </div>
+</body>
+</html>`;
   }
 
   function formatRequestLines(rows) {
@@ -1475,6 +2059,27 @@
       });
     }
 
+    if (generatePdfReportBtn) {
+      generatePdfReportBtn.addEventListener("click", async () => {
+        const rows = basketRows();
+        if (!rows.length) {
+          setStatus("Add at least one card first.");
+          return;
+        }
+
+        if (!hasRequiredPhotos(rows)) {
+          setStatus("Upload photos for cards worth €5+ before generating the PDF report.");
+          return;
+        }
+
+        const context = sellerContext();
+        generatePdfReportBtn.disabled = true;
+        await savePurchasePdf(rows, context);
+        generatePdfReportBtn.disabled = false;
+        setStatus("PDF report downloaded.");
+      });
+    }
+
     if (sendOfferEmailBtn) {
       sendOfferEmailBtn.addEventListener("click", () => {
         const rows = basketRows();
@@ -1540,7 +2145,7 @@
     renderBasket();
     setCartOpen(false);
     setControlsDisabled(true);
-    setLoadingVisual(true, "Loading sets...", 0);
+    setLoadingVisual(true, "Loading sets...", 10);
 
     const loadedSets = await withRetry(() => loadSets(), 3, 400);
     if (!loadedSets.length) {
