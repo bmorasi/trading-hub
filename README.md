@@ -34,6 +34,16 @@ If your browser blocks CORS for local file access, run a small static server in 
 6. Add `shopify-section-buylist.liquid` into your theme `sections` folder
 7. Add the section in Theme Editor
 
+## Script injection
+
+For a storefront script-injection tool, host the project folder on a public HTTPS URL and add only this script tag:
+
+```html
+<script src="https://your-domain.example/assets/js/buylist-widget.js" defer></script>
+```
+
+The widget creates its own markup, loads the stylesheet and application files relative to that script URL, and uses the existing `card-binder-logo.avif` asset. Keep the `assets` folder structure unchanged when publishing it. The host must allow cross-origin requests for the JavaScript, CSS, logo, and TCGDex API calls.
+
 ## API usage strategy (minimal calls)
 
 - Debounced card search (400ms)
