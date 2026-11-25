@@ -21,7 +21,7 @@
       .filter(Boolean)
       .join(" • ");
 
-    main.innerHTML = `<strong>${row.name}</strong><br><small>${meta}</small><br><small>Value: ${fmtEUR.format(row.value)} | Cash: ${fmtEUR.format(row.cash)} | Credit: ${fmtEUR.format(row.credit)}</small>`;
+    main.innerHTML = `<strong>${row.name}</strong><br><small>${meta}</small><br><small>Value: ${fmtEUR.format(row.value)} | Payout: ${fmtEUR.format(row.cash)} | Credit: ${fmtEUR.format(row.credit)}</small>`;
 
     if (Number(row.market) >= photoThreshold) {
       const photoRow = document.createElement("div");
@@ -66,7 +66,7 @@
     for (const [key, profile] of Object.entries(conditionProfiles)) {
       const option = document.createElement("option");
       option.value = key;
-      option.textContent = `${profile.label} (${Math.round(profile.valuePct * 100)}% value)`;
+      option.textContent = profile.label;
       conditionSelect.appendChild(option);
     }
 

@@ -55,7 +55,7 @@
         </label>
       </div>
       <div class="action-row">
-        <span id="quick-offer" class="quick-offer">Cash total: €0.00</span>
+        <span id="quick-offer" class="quick-offer">Payout total: €0.00</span>
       </div>
       <div id="search-status" class="status" aria-live="polite"></div>
       <div id="loading-visual" class="loading-visual" aria-live="polite" aria-busy="true">
@@ -95,7 +95,7 @@
       <div class="summary">
         <div><span>Estimated market value</span><strong id="sum-market">€0.00</strong></div>
         <div><span>Condition-adjusted value</span><strong id="sum-value">€0.00</strong></div>
-        <div><span>Cash payout</span><strong id="sum-cash">€0.00</strong></div>
+        <div><span>Payout</span><strong id="sum-cash">€0.00</strong></div>
         <div><span>Store credit payout</span><strong id="sum-credit">€0.00</strong></div>
       </div>
       <div class="email-panel">
@@ -103,6 +103,11 @@
         <input id="seller-name" type="text" placeholder="Full name" />
         <label for="seller-email">Customer Email</label>
         <input id="seller-email" type="email" placeholder="customer@example.com" />
+        <label for="payout-method">Payment Option</label>
+        <select id="payout-method">
+          <option value="cash">Payout</option>
+          <option value="credit">Store Credit</option>
+        </select>
         <p id="photo-requirement-note" class="hint">Upload photos directly on each basket card worth €5 or more.</p>
         <label for="offer-spec">Specification</label>
         <textarea id="offer-spec" rows="4" placeholder="Condition notes, shipping details, payout preference, etc."></textarea>

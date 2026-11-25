@@ -13,7 +13,7 @@ This workspace contains a Proof of Concept for a Shopify buylist tool that:
 
 Defined in `assets/js/core/pricing.js`. Value is a share of the market price; payouts are a share of that value.
 
-| Condition | Value | Cash | Store credit |
+| Condition | Value | Payout | Store credit |
 |---|---|---|---|
 | Near Mint | 100% | 75% | 90% |
 | Excellent | 75% | 56% | 68% |

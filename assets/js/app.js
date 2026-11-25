@@ -74,6 +74,7 @@
   const generatePdfReportBtn = document.getElementById("generate-pdf-report");
   const sellerNameEl = document.getElementById("seller-name");
   const sellerEmailEl = document.getElementById("seller-email");
+  const payoutMethodEl = document.getElementById("payout-method");
   const photoRequirementNoteEl = document.getElementById("photo-requirement-note");
   const offerSpecEl = document.getElementById("offer-spec");
   const vendorEmailNoteEl = document.getElementById("vendor-email-note");
@@ -101,6 +102,12 @@
   let conditionModalDefectsEl = null;
   let statusToastEl = null;
   let statusToastTimer = null;
+  let agreementReferenceId = "";
+
+  const PAYOUT_METHODS = {
+    cash: { label: "Payout", rowKey: "cash", subtotalKey: "subtotalCash" },
+    credit: { label: "Store Credit", rowKey: "credit", subtotalKey: "subtotalCredit" }
+  };
 
   const fmtEUR = new Intl.NumberFormat("en-IE", {
     style: "currency",
@@ -260,7 +267,7 @@
     table.className = "condition-modal-table";
 
     const thead = document.createElement("thead");
-    thead.innerHTML = "<tr><th>Card State</th><th>% Value</th><th>Cash</th><th>Store Credit</th><th>Defects</th></tr>";
+    thead.innerHTML = "<tr><th>Card State</th><th>Defects</th></tr>";
 
     const tbody = document.createElement("tbody");
     for (const [key, profile] of Object.entries(CONDITION_PROFILES)) {
@@ -268,9 +275,6 @@
       tr.dataset.condition = key;
       tr.innerHTML = [
         `<td>${profile.label}</td>`,
-        `<td>${Math.round(profile.valuePct * 100)}%</td>`,
-        `<td>${Math.round(profile.valuePct * profile.cashPctOfValue * 100)}%</td>`,
-        `<td>${Math.round(profile.valuePct * profile.creditPctOfValue * 100)}%</td>`,
         `<td>${profile.defects}</td>`
       ].join("");
       conditionModalRows.set(key, tr);
@@ -859,13 +863,13 @@
     if (market && offer) {
       if (Number.isFinite(card.market) && card.market > 0) {
         market.textContent = `Market: ${fmtEUR.format(card.market)}`;
-        offer.textContent = `Cash (Near Mint): ${fmtEUR.format(cashOfferByCondition(card.market, "near_mint"))}`;
+        offer.textContent = `Payout (Near Mint): ${fmtEUR.format(cashOfferByCondition(card.market, "near_mint"))}`;
       } else if (card.priceResolved) {
         market.textContent = "Market: no data";
-        offer.textContent = "Cash: unavailable";
+        offer.textContent = "Payout: unavailable";
       } else {
         market.textContent = "Market: unavailable";
-        offer.textContent = "Cash: pending value";
+        offer.textContent = "Payout: pending value";
       }
     }
 
@@ -1201,7 +1205,7 @@
       }
     }
     if (quickOfferEl) {
-      quickOfferEl.textContent = `Cash total: ${fmtEUR.format(cashTotal)}`;
+      quickOfferEl.textContent = `Payout total: ${fmtEUR.format(cashTotal)}`;
     }
 
     if (vendorEmailNoteEl) {
@@ -1376,7 +1380,7 @@
             if (!marketEl || !offerEl) continue;
             if (Number.isFinite(card.market) && card.market > 0) {
               marketEl.textContent = `Market: ${fmtEUR.format(card.market)}`;
-              offerEl.textContent = `Cash (Near Mint): ${fmtEUR.format(cashOfferByCondition(card.market, "near_mint"))}`;
+              offerEl.textContent = `Payout (Near Mint): ${fmtEUR.format(cashOfferByCondition(card.market, "near_mint"))}`;
             }
           }
         }
@@ -1447,8 +1451,28 @@
     runSearchFlow(getSearchValue());
   }
 
+  // One reference per basket: the PDF and the email request share it, and a basket
+  // reset starts a new one.
+  function currentReferenceId() {
+    if (!agreementReferenceId) {
+      const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const random = new Uint32Array(1);
+      crypto.getRandomValues(random);
+      const suffix = random[0].toString(36).toUpperCase().padStart(6, "0").slice(-6);
+      agreementReferenceId = `CB-${date}-${suffix}`;
+    }
+    return agreementReferenceId;
+  }
+
+  function selectedPayoutMethod() {
+    const key = payoutMethodEl ? payoutMethodEl.value : "cash";
+    return PAYOUT_METHODS[key] || PAYOUT_METHODS.cash;
+  }
+
   function sellerContext() {
     return {
+      referenceId: currentReferenceId(),
+      payout: selectedPayoutMethod(),
       vendorEmail: getVendorEmail(),
       sellerName: sellerNameEl ? sellerNameEl.value.trim() : "",
       sellerEmail: sellerEmailEl ? sellerEmailEl.value.trim() : "",
@@ -1555,11 +1579,10 @@
     const marginRight = 36;
     const contentWidth = pageWidth - marginX - marginRight;
     const submittedDate = new Date(context.submittedAt || Date.now()).toLocaleString();
+    const payout = context.payout || PAYOUT_METHODS.cash;
     const totals = {
-      market: rows.reduce((sum, row) => sum + row.market * row.quantity, 0),
       value: rows.reduce((sum, row) => sum + row.subtotalValue, 0),
-      cash: rows.reduce((sum, row) => sum + row.subtotalCash, 0),
-      credit: rows.reduce((sum, row) => sum + row.subtotalCredit, 0)
+      payout: rows.reduce((sum, row) => sum + row[payout.subtotalKey], 0)
     };
     const colors = {
       ink: "0.12 0.12 0.12",
@@ -1603,7 +1626,7 @@
     };
     const finishPage = () => {
       line(marginX, 28, pageWidth - marginRight, 28, colors.line);
-      text("Card-Binder.com | Preliminary purchase report", marginX, 17, 6.5, "F1", colors.muted);
+      text(`Card-Binder.com | Preliminary purchase report | Ref ${context.referenceId || "n/a"}`, marginX, 17, 6.5, "F1", colors.muted);
       pages.push(commands);
       commands = "";
     };
@@ -1627,12 +1650,14 @@
     text(`Email: ${context.sellerEmail || "Not provided"}`, marginX + 12, y - 31, 8, "F1", colors.muted);
     text(`Prepared: ${submittedDate}`, marginX + 350, y - 16, 9, "F2");
     text(`Vendor: ${context.vendorEmail || "Not provided"}`, marginX + 350, y - 31, 8, "F1", colors.muted);
+    text(`Reference: ${context.referenceId || "n/a"}`, marginX + 560, y - 16, 9, "F2");
+    text(`Payment option: ${payout.label}`, marginX + 560, y - 31, 8, "F1", colors.muted);
     y -= 68;
 
     const columns = [
-      ["#", 22], ["Card", 110], ["Set", 100], ["No.", 42], ["Condition", 58],
-      ["Market", 48], ["Value", 48], ["Cash", 48], ["Credit", 48], ["Qty", 28],
-      ["Value total", 58], ["Cash total", 58], ["Credit total", 58]
+      ["#", 22], ["Card", 176], ["Set", 156], ["No.", 42], ["Condition", 70],
+      ["Value", 52], [payout.label, 60], ["Qty", 28],
+      ["Value total", 64], [`${payout.label} total`, 72]
     ];
     const rowHeight = 28;
     const headerHeight = 25;
@@ -1654,8 +1679,8 @@
       if (index % 2 === 0) rect(marginX, y, contentWidth, rowHeight, colors.pale);
       const values = [
         String(index + 1), row.name, row.setName || "n/a", row.localId || "n/a", conditionLabel(row.condition),
-        fmtEUR.format(row.market), fmtEUR.format(row.value), fmtEUR.format(row.cash), fmtEUR.format(row.credit),
-        String(row.quantity), fmtEUR.format(row.subtotalValue), fmtEUR.format(row.subtotalCash), fmtEUR.format(row.subtotalCredit)
+        fmtEUR.format(row.value), fmtEUR.format(row[payout.rowKey]),
+        String(row.quantity), fmtEUR.format(row.subtotalValue), fmtEUR.format(row[payout.subtotalKey])
       ];
       let x = marginX + 4;
       values.forEach((value, valueIndex) => {
@@ -1676,12 +1701,10 @@
       startPage(pages.length + 1);
     }
     const totalsTop = y - 8;
-    rect(marginX, totalsTop, 300, 88, colors.pale, colors.line);
+    rect(marginX, totalsTop, 300, 62, colors.pale, colors.line);
     text("PAYOUT SUMMARY", marginX + 12, totalsTop - 18, 9, "F2", colors.accent);
-    text(`Estimated market total: ${fmtEUR.format(totals.market)}`, marginX + 12, totalsTop - 35, 8, "F1");
-    text(`Condition-adjusted value: ${fmtEUR.format(totals.value)}`, marginX + 12, totalsTop - 48, 8, "F1");
-    text(`Cash payout: ${fmtEUR.format(totals.cash)}`, marginX + 12, totalsTop - 61, 8, "F2");
-    text(`Store credit: ${fmtEUR.format(totals.credit)}`, marginX + 12, totalsTop - 74, 8, "F2");
+    text(`Condition-adjusted value: ${fmtEUR.format(totals.value)}`, marginX + 12, totalsTop - 35, 8, "F1");
+    text(`${payout.label}: ${fmtEUR.format(totals.payout)}`, marginX + 12, totalsTop - 48, 8, "F2");
 
     const legal = "This purchase report is a preliminary valuation and negotiation document only. The seller confirms that the cards listed are owned by the seller and that the listed conditions and photo evidence are accurate to the best of the seller's knowledge. Final acceptance, payout, and settlement remain subject to verification, inspection, and separate written agreement between both parties.";
     const legalLines = wrapped(legal, 145);
@@ -1746,7 +1769,7 @@
   async function savePurchasePdf(rows, context) {
     const logo = await loadPdfLogo();
     const blob = buildSimplePdf(rows, context, logo);
-    const fileName = `purchase-report-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.pdf`;
+    const fileName = `purchase-report-${context.referenceId}.pdf`;
     triggerFileDownload(fileName, blob);
     window.__lastPurchasePdf = { fileName, size: blob.size };
   }
@@ -1969,11 +1992,11 @@
         `   Condition: ${conditionLabel(row.condition)}`,
         `   Market each: ${fmtEUR.format(row.market)}`,
         `   Value each: ${fmtEUR.format(row.value)}`,
-        `   Cash each: ${fmtEUR.format(row.cash)}`,
+        `   Payout each: ${fmtEUR.format(row.cash)}`,
         `   Store credit each: ${fmtEUR.format(row.credit)}`,
         `   Photos attached: ${row.photoCount || 0}`,
         `   Value subtotal: ${fmtEUR.format(row.subtotalValue)}`,
-        `   Cash subtotal: ${fmtEUR.format(row.subtotalCash)}`,
+        `   Payout subtotal: ${fmtEUR.format(row.subtotalCash)}`,
         `   Store credit subtotal: ${fmtEUR.format(row.subtotalCredit)}`
       ].join("\n");
     });
@@ -2057,6 +2080,7 @@
     if (resetBasketBtn) {
       resetBasketBtn.addEventListener("click", () => {
         basket.clear();
+        agreementReferenceId = "";
         renderBasket();
         setStatus("Basket reset.");
       });
@@ -2116,6 +2140,8 @@
           "",
           `Customer name: ${context.sellerName || "not provided"}`,
           `Customer email: ${context.sellerEmail || "not provided"}`,
+          `Reference: ${context.referenceId}`,
+          `Payment option: ${context.payout.label}`,
           `Submitted at: ${context.submittedAt}`,
           "",
           "Cards and submitted condition:",
@@ -2123,7 +2149,7 @@
           "",
           `Estimated market total: ${fmtEUR.format(totalMarket)}`,
           `Condition-adjusted value total: ${fmtEUR.format(totalValue)}`,
-          `Cash payout total: ${fmtEUR.format(totalCash)}`,
+          `Payout total: ${fmtEUR.format(totalCash)}`,
           `Store credit payout total: ${fmtEUR.format(totalCredit)}`,
           "",
           "Per-card photo upload (value >= €5):",

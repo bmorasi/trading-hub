@@ -33,7 +33,7 @@
           <select id="sort-direction" aria-label="Sort direction"><option value="asc">Ascending</option><option value="desc">Descending</option></select>
           <label class="group-toggle" for="group-by-set"><input id="group-by-set" type="checkbox" /> Group by Sets</label>
         </div>
-        <div class="action-row"><span id="quick-offer" class="quick-offer">Cash total: EUR 0.00</span></div>
+        <div class="action-row"><span id="quick-offer" class="quick-offer">Payout total: EUR 0.00</span></div>
         <div id="search-status" class="status" aria-live="polite"></div>
         <div id="loading-visual" class="loading-visual" aria-live="polite" aria-busy="true">
           <div class="loading-head"><span class="loading-spinner" aria-hidden="true"></span><strong id="loading-label">Loading catalog...</strong><span id="loading-percent" class="loading-percent">0%</span></div>
@@ -49,8 +49,8 @@
       <section class="panel basket-panel">
         <div class="basket-head"><h2>Purchase Basket</h2><div class="basket-head-actions"><button id="reset-basket" type="button" class="ghost">Reset</button><button id="close-cart" type="button" class="ghost">Close</button></div></div>
         <ul id="basket-items" class="basket-items"></ul>
-        <div class="summary"><div><span>Estimated market value</span><strong id="sum-market">EUR 0.00</strong></div><div><span>Condition-adjusted value</span><strong id="sum-value">EUR 0.00</strong></div><div><span>Cash payout</span><strong id="sum-cash">EUR 0.00</strong></div><div><span>Store credit payout</span><strong id="sum-credit">EUR 0.00</strong></div></div>
-        <div class="email-panel"><label for="seller-name">Customer Name</label><input id="seller-name" type="text" placeholder="Full name" /><label for="seller-email">Customer Email</label><input id="seller-email" type="email" placeholder="customer@example.com" /><p id="photo-requirement-note" class="hint">Upload photos directly on each basket card worth EUR 5 or more.</p><label for="offer-spec">Specification</label><textarea id="offer-spec" rows="4" placeholder="Condition notes, shipping details, payout preference, etc."></textarea></div>
+        <div class="summary"><div><span>Estimated market value</span><strong id="sum-market">EUR 0.00</strong></div><div><span>Condition-adjusted value</span><strong id="sum-value">EUR 0.00</strong></div><div><span>Payout</span><strong id="sum-cash">EUR 0.00</strong></div><div><span>Store credit payout</span><strong id="sum-credit">EUR 0.00</strong></div></div>
+        <div class="email-panel"><label for="seller-name">Customer Name</label><input id="seller-name" type="text" placeholder="Full name" /><label for="seller-email">Customer Email</label><input id="seller-email" type="email" placeholder="customer@example.com" /><label for="payout-method">Payment Option</label><select id="payout-method"><option value="cash">Payout</option><option value="credit">Store Credit</option></select><p id="photo-requirement-note" class="hint">Upload photos directly on each basket card worth EUR 5 or more.</p><label for="offer-spec">Specification</label><textarea id="offer-spec" rows="4" placeholder="Condition notes, shipping details, payout preference, etc."></textarea></div>
         <div class="email-actions"><button id="send-offer-email" class="submit-btn" type="button">Send Purchase Request to CB</button><button id="generate-pdf-report" class="ghost" type="button">Generate PDF Report</button></div>
         <p id="vendor-email-note" class="hint"></p>
       </section>

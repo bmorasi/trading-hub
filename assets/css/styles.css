@@ -804,6 +804,16 @@ button:hover {
   resize: vertical;
 }
 
+.email-panel select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  padding: 11px 12px;
+  color: var(--ink);
+  background: rgba(25, 25, 25, 0.62);
+}
+
 .email-actions {
   margin-top: 12px;
   display: grid;
