@@ -447,6 +447,10 @@ button:hover {
   animation: shimmer-loader 1.35s linear infinite;
 }
 
+.loading-visual.compact .loading-skeleton-grid {
+  display: none;
+}
+
 .results-shell.loading-active {
   opacity: 0.4;
 }

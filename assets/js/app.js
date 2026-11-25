@@ -44,6 +44,7 @@
   const CARD_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
   const PAGE_SIZE = 60;
   const DETAIL_CONCURRENCY = 8;
+  const RESORT_INTERVAL_MS = 1000;
 
   const rootEl = document.querySelector("[data-buylist-root]");
   const searchInput = document.getElementById("card-search");
@@ -205,14 +206,16 @@
     }
   }
 
-  function setLoadingVisual(isActive, label = "", progress = 0) {
+  function setLoadingVisual(isActive, label = "", progress = 0, compact = false) {
     if (!loadingVisualEl) return;
+
+    loadingVisualEl.classList.toggle("compact", compact);
 
     loadingVisualEl.classList.toggle("hidden", !isActive);
     loadingVisualEl.setAttribute("aria-busy", isActive ? "true" : "false");
 
     if (resultsEl) {
-      resultsEl.classList.toggle("loading-active", isActive);
+      resultsEl.classList.toggle("loading-active", isActive && !compact);
     }
 
     const normalizedProgress = Math.max(0, Math.min(100, Number(progress) || 0));
@@ -1403,6 +1406,37 @@
     await Promise.all(Array.from({ length: Math.min(DETAIL_CONCURRENCY, total) }, worker));
   }
 
+  // Puts the cards already on screen into the latest order. Existing tiles are
+  // moved rather than rebuilt, so images do not reload.
+  function resortResults() {
+    const grid = resultsEl?.querySelector(".results-grid");
+    if (!grid) return;
+
+    activeCards = sortCards(activeCards);
+    const focused = document.activeElement;
+    const nodes = new Map([...grid.children].map((node) => [node.dataset.cardKey, node]));
+    const shown = activeCards.slice(0, renderedCardCount);
+    const added = [];
+
+    shown.forEach((card, index) => {
+      const key = cardDomKey(card);
+      let node = nodes.get(key);
+      if (!node) {
+        appendCardNode(card, grid);
+        node = grid.lastElementChild;
+        added.push(card);
+      }
+      nodes.delete(key);
+      if (grid.children[index] !== node) grid.insertBefore(node, grid.children[index] || null);
+    });
+
+    for (const node of nodes.values()) node.remove();
+    if (focused && grid.contains(focused) && document.activeElement !== focused) {
+      focused.focus({ preventScroll: true });
+    }
+    loadCardDetails(added);
+  }
+
   function runSearchFlow(query) {
     if (!isCatalogReady) {
       setStatus("Cards are still loading. Please wait...");
@@ -1434,26 +1468,34 @@
       updateCatalogCount(renderedCardCount, filtered.length);
     };
 
-    const { field } = currentSort();
+    showResults();
+
+    const { field, direction } = currentSort();
     const needsEveryCard = (field === "price" || field === "dex")
       && catalog.some((card) => !card.detailLoaded);
     if (!needsEveryCard) {
       setLoadingVisual(false, "", 100);
-      showResults();
       return;
     }
 
-    // Empty the list while waiting, so nothing half-sorted is shown or scrolled.
-    clearCardResults();
+    // The list is shown straight away and re-sorted as details arrive.
     const isCurrent = () => renderToken === currentRenderToken && getActiveSetFilter() === activeSet;
-    const label = field === "price" ? "Loading all prices to sort..." : "Loading all cards to sort...";
-    setLoadingVisual(true, label, 0);
-    loadCardDetails(catalog, (done, total) => {
-      setLoadingVisual(true, label, Math.round((done / total) * 100));
+    const label = field === "price" ? "Loading prices, sorting as they arrive..." : "Loading cards, sorting as they arrive...";
+    // Special and secret cards have the highest numbers and usually the highest
+    // prices, so for "high to low" they are loaded first.
+    const loadOrder = field === "price" && direction === "desc" ? [...catalog].reverse() : catalog;
+    let lastSortAt = Date.now();
+    setLoadingVisual(true, label, 0, true);
+    loadCardDetails(loadOrder, (done, total) => {
+      setLoadingVisual(true, label, Math.round((done / total) * 100), true);
+      if (Date.now() - lastSortAt >= RESORT_INTERVAL_MS) {
+        lastSortAt = Date.now();
+        resortResults();
+      }
     }, isCurrent).then(() => {
       if (!isCurrent()) return;
       setLoadingVisual(false, "", 100);
-      showResults();
+      resortResults();
       const failed = catalog.filter((card) => !card.detailLoaded).length;
       if (failed) setStatus(`${failed} card(s) could not be loaded and are listed last.`);
     });
