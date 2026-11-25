@@ -43,7 +43,7 @@
   const SETS_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
   const CARD_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
   const PAGE_SIZE = 60;
-  const HYDRATE_LIMIT = 60;
+  const DETAIL_CONCURRENCY = 8;
 
   const rootEl = document.querySelector("[data-buylist-root]");
   const searchInput = document.getElementById("card-search");
@@ -90,7 +90,7 @@
   const inFlight = new Map();
   const basket = new Map();
   const addQueue = [];
-  const priceHydrating = new Set();
+  const detailRequests = new Map();
   let catalog = [];
   let activeCards = [];
   let renderedCardCount = 0;
@@ -891,6 +891,13 @@
   }
 
   function compareCards(a, b, field, direction) {
+    if (field === "price" || field === "dex") {
+      const key = field === "price" ? "market" : "dexNumber";
+      const aKnown = Number(a[key]) > 0;
+      const bKnown = Number(b[key]) > 0;
+      if (aKnown !== bKnown) return aKnown ? -1 : 1;
+      if (!aKnown) return a.name.localeCompare(b.name);
+    }
     let diff = 0;
     if (field === "dex") {
       const aDex = Number(a.dexNumber) || 0;
@@ -990,9 +997,14 @@
     renderedCardCount = end;
     updateCatalogCount(renderedCardCount, activeCards.length);
 
-    hydrateVisiblePrices(nextCards, lastQuery, getActiveSetFilter(), currentRenderToken).catch(() => {
-      // Best-effort hydration only.
-    });
+    loadCardDetails(nextCards);
+
+    // The observer only fires when visibility changes. Observing again makes it
+    // report once more, so loading continues if the end is still on screen.
+    if (observer && resultsSentinelEl && renderedCardCount < activeCards.length) {
+      observer.unobserve(resultsSentinelEl);
+      observer.observe(resultsSentinelEl);
+    }
   }
 
   function basketItemCount() {
@@ -1337,81 +1349,58 @@
     processAddQueue();
   }
 
-  async function hydrateVisiblePrices(cards, queryAtStart, setAtStart, renderTokenAtStart) {
-    const missing = cards.filter(
-      (card) => (!Number.isFinite(card.market) || card.market <= 0) && !priceHydrating.has(card.id)
-    );
-    if (!missing.length) return;
-
-    const toHydrate = missing.slice(0, HYDRATE_LIMIT);
-    for (const card of toHydrate) {
-      priceHydrating.add(card.id);
+  function refreshCardNodes(card) {
+    if (!resultsEl) return;
+    for (const node of resultsEl.querySelectorAll(`[data-card-key="${cardDomKey(card)}"]`)) {
+      const metaEl = node.querySelector(".result-meta");
+      const offerEl = node.querySelector(".offer");
+      if (metaEl) metaEl.textContent = cardMeta(card);
+      if (offerEl) offerEl.textContent = tileOfferText(card);
     }
+  }
 
-    await Promise.allSettled(
-      toHydrate.map(async (card) => {
-        const detail = await getVerifiedCardDetails(card);
+  // Fills in price and Pokedex number. Callers asking for the same card share one
+  // request; a failed request leaves the card unresolved so it is tried again.
+  function loadCardDetail(card) {
+    if (card.detailLoaded) return Promise.resolve();
+    if (detailRequests.has(card)) return detailRequests.get(card);
+
+    const request = getVerifiedCardDetails(card)
+      .then((detail) => {
         card.priceResolved = true;
         if (!detail) return;
+        card.detailLoaded = Boolean(detail.id);
         card.needsQuote = Boolean(detail.needsQuote);
-
-        if (detail?.name) {
-          card.name = detail.name;
-        }
-        if (detail?.setId || detail?.set?.id) {
-          card.setId = detail.setId || detail.set?.id || card.setId;
-        }
-        if (detail?.setName || detail?.set?.name) {
-          card.setName = detail.setName || detail.set?.name || card.setName;
-        }
-        if (detail?.localId || detail?.number) {
-          card.localId = detail.localId || detail.number || card.localId;
-        }
+        card.dexNumber = Number(Array.isArray(detail.dexId) ? detail.dexId[0] : detail.dexId) || card.dexNumber;
         if (Number.isFinite(detail.market) && detail.market > 0) {
           card.market = detail.market;
           card.unit = detail.unit || card.unit;
         }
-        if (detail?.imageCandidates?.length) {
-          card.imageCandidates = detail.imageCandidates;
-          card.image = detail.imageCandidates[0] || card.image;
-        }
-        if (!card.image && detail.image) {
-          card.image = detail.image;
-        }
       })
-    );
+      .catch((error) => {
+        console.warn(`Could not load card ${card.id}:`, error);
+      })
+      .finally(() => {
+        detailRequests.delete(card);
+        refreshCardNodes(card);
+      });
 
-    for (const card of toHydrate) {
-      priceHydrating.delete(card.id);
-    }
+    detailRequests.set(card, request);
+    return request;
+  }
 
-    if (
-      currentRenderToken === renderTokenAtStart &&
-      lastQuery === queryAtStart &&
-      getActiveSetFilter() === setAtStart
-    ) {
-      for (const card of cards) {
-        const key = cardDomKey(card);
-        const nodes = resultsEl ? resultsEl.querySelectorAll(`[data-card-key="${key}"]`) : [];
-        for (const node of nodes) {
-          const titleEl = node.querySelector(".result-title");
-          const metaEl = node.querySelector(".result-meta");
-          const imageEl = node.querySelector(".result-image");
-          const offerEl = node.querySelector(".offer");
-
-          if (titleEl) {
-            titleEl.textContent = card.name || titleEl.textContent;
-          }
-          if (metaEl) {
-            metaEl.textContent = cardMeta(card);
-          }
-          if (imageEl) {
-            bindImageWithFallback(imageEl, card, node);
-          }
-          if (offerEl) offerEl.textContent = tileOfferText(card);
-        }
+  async function loadCardDetails(cards, onProgress, shouldContinue = () => true) {
+    const queue = cards.filter((card) => !card.detailLoaded);
+    const total = queue.length;
+    let done = 0;
+    const worker = async () => {
+      while (queue.length && shouldContinue()) {
+        await loadCardDetail(queue.shift());
+        done += 1;
+        if (onProgress && shouldContinue()) onProgress(done, total);
       }
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(DETAIL_CONCURRENCY, total) }, worker));
   }
 
   function runSearchFlow(query) {
@@ -1435,15 +1424,39 @@
     const renderToken = ++currentRenderToken;
     lastQuery = qNormalized;
 
-    const filtered = catalog.filter((card) => {
-      const matchText = !qNormalized || setFilterText(card).includes(qNormalized);
-      const matchSet = card.setId === activeSet;
-      return matchText && matchSet;
-    });
+    const showResults = () => {
+      const filtered = catalog.filter((card) => {
+        const matchText = !qNormalized || setFilterText(card).includes(qNormalized);
+        const matchSet = card.setId === activeSet;
+        return matchText && matchSet;
+      });
+      renderSearchResults(sortCards(filtered));
+      updateCatalogCount(renderedCardCount, filtered.length);
+    };
 
-    const sorted = sortCards(filtered);
-    renderSearchResults(sorted);
-    updateCatalogCount(renderedCardCount, sorted.length);
+    const { field } = currentSort();
+    const needsEveryCard = (field === "price" || field === "dex")
+      && catalog.some((card) => !card.detailLoaded);
+    if (!needsEveryCard) {
+      setLoadingVisual(false, "", 100);
+      showResults();
+      return;
+    }
+
+    // Empty the list while waiting, so nothing half-sorted is shown or scrolled.
+    clearCardResults();
+    const isCurrent = () => renderToken === currentRenderToken && getActiveSetFilter() === activeSet;
+    const label = field === "price" ? "Loading all prices to sort..." : "Loading all cards to sort...";
+    setLoadingVisual(true, label, 0);
+    loadCardDetails(catalog, (done, total) => {
+      setLoadingVisual(true, label, Math.round((done / total) * 100));
+    }, isCurrent).then(() => {
+      if (!isCurrent()) return;
+      setLoadingVisual(false, "", 100);
+      showResults();
+      const failed = catalog.filter((card) => !card.detailLoaded).length;
+      if (failed) setStatus(`${failed} card(s) could not be loaded and are listed last.`);
+    });
   }
 
   function debounceSearch() {
