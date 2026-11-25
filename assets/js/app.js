@@ -78,6 +78,7 @@
   const photoRequirementNoteEl = document.getElementById("photo-requirement-note");
   const offerSpecEl = document.getElementById("offer-spec");
   const vendorEmailNoteEl = document.getElementById("vendor-email-note");
+  const attachReminderEl = document.getElementById("attach-reminder");
   const setGridEl = document.getElementById("set-grid");
   const resultTemplate = document.getElementById("result-item-template");
 
@@ -669,9 +670,9 @@
     photoRequirementNoteEl.textContent = `${requiredCount} card(s) require photos (value >= ${fmtEUR.format(PHOTO_THRESHOLD_EUR)}). Missing photos on ${missingRows} card(s).`;
   }
 
-  function openMailDraft(to, subject, lines) {
+  function openMailDraft(to, cc, subject, lines) {
     const body = lines.join("\n");
-    window.location.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = `mailto:${to}?cc=${encodeURIComponent(cc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
   function cardMeta(card) {
@@ -1213,6 +1214,7 @@
     }
 
     updatePhotoRequirementHint(rows);
+    if (attachReminderEl) attachReminderEl.classList.add("hidden");
   }
 
   async function addCardToBasketNow(card) {
@@ -1766,10 +1768,14 @@
     return new Blob([pdfStringToBytes(pdf)], { type: "application/pdf" });
   }
 
+  function purchasePdfFileName(referenceId) {
+    return `purchase-report-${referenceId}.pdf`;
+  }
+
   async function savePurchasePdf(rows, context) {
     const logo = await loadPdfLogo();
     const blob = buildSimplePdf(rows, context, logo);
-    const fileName = `purchase-report-${context.referenceId}.pdf`;
+    const fileName = purchasePdfFileName(context.referenceId);
     triggerFileDownload(fileName, blob);
     window.__lastPurchasePdf = { fileName, size: blob.size };
   }
@@ -2121,6 +2127,12 @@
         }
 
         const context = sellerContext();
+        if (!context.sellerEmail || (sellerEmailEl && !sellerEmailEl.checkValidity())) {
+          setStatus("Enter a valid customer email so you receive a copy of the request.");
+          if (sellerEmailEl) sellerEmailEl.focus();
+          return;
+        }
+
         const lines = formatRequestLines(rows);
         const totalMarket = rows.reduce((sum, row) => sum + row.market * row.quantity, 0);
         const totalValue = rows.reduce((sum, row) => sum + row.subtotalValue, 0);
@@ -2132,11 +2144,19 @@
           return `${row.name} (${row.setName || "n/a"} #${row.localId || "n/a"}): ${names.length ? names.join(", ") : "NO PHOTOS"}`;
         });
 
+        const pdfFileName = purchasePdfFileName(context.referenceId);
+        const photoNames = getPhotoRequiredRows(rows).flatMap((row) => getRowPhotoFiles(row).map((file) => file.name));
+        const attachments = photoNames.length
+          ? `the PDF report (${pdfFileName}) and your card photos (${photoNames.join(", ")})`
+          : `the PDF report (${pdfFileName})`;
+
         const subject = `Pokemon Card Purchase Request - ${context.sellerName || "Customer"}`;
         const bodyLines = [
           "Hello CB,",
           "",
           "I would like to submit this purchase request for Pokemon cards.",
+          "",
+          `BEFORE SENDING: please attach ${attachments}.`,
           "",
           `Customer name: ${context.sellerName || "not provided"}`,
           `Customer email: ${context.sellerEmail || "not provided"}`,
@@ -2152,7 +2172,7 @@
           `Payout total: ${fmtEUR.format(totalCash)}`,
           `Store credit payout total: ${fmtEUR.format(totalCredit)}`,
           "",
-          "Per-card photo upload (value >= €5):",
+          "Photos to attach (cards worth €5 or more):",
           photoSummaryLines.length ? photoSummaryLines.map((line) => `- ${line}`).join("\n") : "No cards require photos.",
           "",
           "Specification:",
@@ -2162,8 +2182,12 @@
           ""
         ];
 
-        openMailDraft(context.vendorEmail, subject, bodyLines);
-        setStatus(`Purchase request draft opened for ${context.vendorEmail}.`);
+        openMailDraft(context.vendorEmail, context.sellerEmail, subject, bodyLines);
+        setStatus(`Purchase request draft opened for ${context.vendorEmail}, with a copy to ${context.sellerEmail}.`);
+        if (attachReminderEl) {
+          attachReminderEl.textContent = `Before you press send, attach ${attachments}. Use "Generate PDF Report" if you have not downloaded the PDF yet.`;
+          attachReminderEl.classList.remove("hidden");
+        }
       });
     }
   }
