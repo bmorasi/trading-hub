@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  pages: write
 
 concurrency:
   group: cardmarket-prices
@@ -30,3 +31,8 @@ jobs:
           git add assets/data/cardmarket-prices.json
           git diff --cached --quiet || git commit -m "Update Cardmarket prices"
           git push
+      # GitHub Pages does not rebuild for commits made with the job's own token.
+      - name: Republish the site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/${{ github.repository }}/pages/builds"

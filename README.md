@@ -43,7 +43,7 @@ node scripts/build-cardmarket-prices.mjs
 ```
 
 - Needs Node 18 or newer, no packages. It covers sets released in the last 365 days; use `--sets=me06` to choose.
-- `.github/workflows/cardmarket-prices.yml` runs it daily and commits the file.
+- `.github/workflows/cardmarket-prices.yml` runs it daily, commits the file and asks GitHub Pages to rebuild the site.
 - The app ignores a file older than 3 days.
 - Standalone page and widget: the file is found next to the scripts. Shopify: host it publicly (CORS allowed) and enter its address in the section setting "Cardmarket price file URL".
 - Before publishing these prices, confirm with Cardmarket that this use of their data is allowed.
