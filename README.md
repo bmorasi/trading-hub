@@ -4,15 +4,29 @@ This workspace contains a Proof of Concept for a Shopify buylist tool that:
 
 - Lets customers search Pokemon cards from TCGDex
 - Reads market value from TCGDex card data when available
-- Offers 85% buy-in pricing
-- Builds a buylist basket with quantity and subtotal
+- Prices each card by condition, with a cash and a store-credit payout (see below)
+- Builds a buylist basket with quantity and subtotal, and requires photos for cards worth €5 or more
+- Sends the purchase request by email and can generate a PDF report
 - Uses client-side caching and debounced search to keep API calls low
+
+## Payout by condition
+
+Defined in `assets/js/core/pricing.js`. Value is a share of the market price; payouts are a share of that value.
+
+| Condition | Value | Cash | Store credit |
+|---|---|---|---|
+| Near Mint | 100% | 75% | 90% |
+| Excellent | 75% | 56% | 68% |
+| Good | 50% | 38% | 45% |
+| Poor | 10% | 8% | 9% |
 
 ## Files
 
 - `index.html`: Standalone preview page
 - `assets/css/styles.css`: Card-binder-inspired styling
 - `assets/js/app.js`: App orchestration and UI flow
+- `assets/js/tcgdx-client.js`: TCGDex SDK fallback for card details (ES module)
+- `assets/js/buylist-widget.js`: Single-script loader for script injection
 - `assets/js/core/catalog-helpers.js`: Catalog normalization and card image helpers
 - `assets/js/core/pricing.js`: Condition and pricing helpers
 - `assets/js/ui/basket-ui.js`: Basket row UI component builder
@@ -27,12 +41,14 @@ If your browser blocks CORS for local file access, run a small static server in 
 ## Shopify integration notes
 
 1. Upload `assets/css/styles.css` as `buylist-styles.css`
-2. Upload `assets/js/core/catalog-helpers.js` as `buylist-core-catalog-helpers.js`
-3. Upload `assets/js/core/pricing.js` as `buylist-core-pricing.js`
-4. Upload `assets/js/ui/basket-ui.js` as `buylist-ui-basket.js`
-5. Upload `assets/js/app.js` as `buylist-app.js`
-6. Add `shopify-section-buylist.liquid` into your theme `sections` folder
-7. Add the section in Theme Editor
+2. Upload `assets/card-binder-logo.avif` as `buylist-logo.avif`
+3. Upload `assets/js/tcgdx-client.js` as `buylist-tcgdx-client.js`
+4. Upload `assets/js/core/catalog-helpers.js` as `buylist-core-catalog-helpers.js`
+5. Upload `assets/js/core/pricing.js` as `buylist-core-pricing.js`
+6. Upload `assets/js/ui/basket-ui.js` as `buylist-ui-basket.js`
+7. Upload `assets/js/app.js` as `buylist-app.js`
+8. Add `shopify-section-buylist.liquid` into your theme `sections` folder
+9. Add the section in Theme Editor
 
 ## Script injection
 

@@ -2,6 +2,8 @@
   Shopify Section POC: Pokemon Buylist
   Upload assets:
   - buylist-styles.css
+  - buylist-logo.avif
+  - buylist-tcgdx-client.js
   - buylist-core-catalog-helpers.js
   - buylist-core-pricing.js
   - buylist-ui-basket.js
@@ -13,6 +15,7 @@
 <div class="grain"></div>
 <div class="buylist-shell" data-buylist-root data-vendor-email="{{ section.settings.vendor_email | escape }}">
   <header class="hero">
+    <img class="brand-logo" src="{{ 'buylist-logo.avif' | asset_url }}" alt="Card-Binder.com" />
     <p class="eyebrow">Card Binder Trade Desk</p>
     <h1>{{ section.settings.heading }}</h1>
     <p class="hero-copy">{{ section.settings.subheading }}</p>
@@ -106,6 +109,7 @@
     </div>
     <div class="email-actions">
       <button id="send-offer-email" class="submit-btn" type="button">Send Purchase Request to CB</button>
+      <button id="generate-pdf-report" class="ghost" type="button">Generate PDF Report</button>
     </div>
     <p id="vendor-email-note" class="hint"></p>
   </section>
@@ -139,6 +143,7 @@
   </li>
 </template>
 
+<script type="module" src="{{ 'buylist-tcgdx-client.js' | asset_url }}"></script>
 <script src="{{ 'buylist-core-catalog-helpers.js' | asset_url }}" defer></script>
 <script src="{{ 'buylist-core-pricing.js' | asset_url }}" defer></script>
 <script src="{{ 'buylist-ui-basket.js' | asset_url }}" defer></script>

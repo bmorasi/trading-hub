@@ -1494,7 +1494,10 @@
 
   async function loadPdfLogo() {
     try {
-      const response = await fetch("./assets/card-binder-logo.avif");
+      // Use the logo the page already shows: its src is resolved correctly for the
+      // standalone page, the injected widget and the Shopify section alike.
+      const logoSrc = document.querySelector(".brand-logo")?.src || "./assets/card-binder-logo.avif";
+      const response = await fetch(logoSrc);
       const imageBlob = await response.blob();
       const imageUrl = URL.createObjectURL(imageBlob);
       const image = new Image();
