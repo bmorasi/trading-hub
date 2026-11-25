@@ -2,6 +2,7 @@
   function createBasketItemElement(options) {
     const {
       row,
+      payout,
       fmtEUR,
       photoThreshold,
       conditionProfiles,
@@ -21,7 +22,7 @@
       .filter(Boolean)
       .join(" • ");
 
-    main.innerHTML = `<strong>${row.name}</strong><br><small>${meta}</small><br><small>Value: ${fmtEUR.format(row.value)} | Payout: ${fmtEUR.format(row.cash)} | Credit: ${fmtEUR.format(row.credit)}</small>`;
+    main.innerHTML = `<strong>${row.name}</strong><br><small>${meta}</small><br><small>Value: ${fmtEUR.format(row.value)} | ${payout.label}: ${fmtEUR.format(row[payout.rowKey])}</small>`;
 
     if (Number(row.market) >= photoThreshold) {
       const photoRow = document.createElement("div");
@@ -63,6 +64,7 @@
 
     const conditionSelect = document.createElement("select");
     conditionSelect.className = "condition-select";
+    conditionSelect.setAttribute("aria-label", `Condition of ${row.name}`);
     for (const [key, profile] of Object.entries(conditionProfiles)) {
       const option = document.createElement("option");
       option.value = key;
@@ -81,7 +83,8 @@
     defectsHelpBtn.type = "button";
     defectsHelpBtn.className = "ghost defects-help-btn";
     defectsHelpBtn.textContent = "?";
-    defectsHelpBtn.title = "Show defects guidance";
+    defectsHelpBtn.title = "What do the conditions mean?";
+    defectsHelpBtn.setAttribute("aria-label", defectsHelpBtn.title);
     defectsHelpBtn.addEventListener("click", () => {
       openConditionMatrixModal(conditionSelect.value);
     });
@@ -95,7 +98,8 @@
     qtyInput.min = "1";
     qtyInput.value = String(row.quantity);
     qtyInput.className = "qty";
-    qtyInput.addEventListener("input", () => {
+    qtyInput.setAttribute("aria-label", `Quantity of ${row.name}`);
+    qtyInput.addEventListener("change", () => {
       onUpdate(row.cardId, (existing) => {
         existing.quantity = Math.max(1, Number(qtyInput.value) || 1);
       });
@@ -105,6 +109,7 @@
     remove.type = "button";
     remove.className = "ghost";
     remove.textContent = "Remove";
+    remove.setAttribute("aria-label", `Remove ${row.name}`);
     remove.addEventListener("click", () => {
       onRemove(row.cardId);
     });

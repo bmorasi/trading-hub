@@ -102,48 +102,35 @@
       || IGNORED_POCKET_SET_NAMES.has(setName);
   }
 
-  function extractMarketPrice(card) {
-    const candidates = [
-      card?.pricing?.cardmarket?.avg,
-      card?.pricing?.cardmarket?.trend,
-      card?.pricing?.cardmarket?.low,
-      card?.pricing?.cardmarket?.avg7,
-      card?.pricing?.cardmarket?.avg30,
-      card?.pricing?.cardmarket?.["avg-holo"],
-      card?.pricing?.cardmarket?.["trend-holo"],
-      card?.pricing?.cardmarket?.["low-holo"],
-      card?.pricing?.tcgplayer?.holo?.marketPrice,
-      card?.pricing?.tcgplayer?.holo?.lowPrice,
-      card?.pricing?.tcgplayer?.normal?.marketPrice,
-      card?.pricing?.tcgplayer?.normal?.lowPrice,
-      card?.pricing?.tcgplayer?.marketPrice,
-      card?.pricing?.tcgplayer?.lowPrice,
-      card?.cardmarket?.prices?.averageSellPrice,
-      card?.cardmarket?.prices?.trendPrice,
-      card?.cardmarket?.avg,
-      card?.prices?.cardmarket?.avg,
-      card?.prices?.cardmarket?.trend,
-      card?.prices?.cardmarket?.low,
-      card?.prices?.cardmarket,
-      card?.prices?.market,
-      card?.market,
-      card?.price
-    ];
-
-    for (const value of candidates) {
-      const n = Number(value);
-      if (Number.isFinite(n) && n > 0) return n;
-    }
-    return null;
+  function median(values) {
+    const sorted = values.map(Number).filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => a - b);
+    if (!sorted.length) return null;
+    const middle = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
   }
 
-  function extractPricingUnit(card) {
-    return (
-      card?.pricing?.cardmarket?.unit ||
-      card?.pricing?.tcgplayer?.unit ||
-      card?.prices?.cardmarket?.unit ||
-      "EUR"
-    );
+  // Market value in EUR, from Cardmarket only.
+  // - The middle value of trend, 7-day and 30-day average, so one unusual sale or
+  //   spike does not set the price. The all-time "avg" is used only if those are missing.
+  // - Never "low" (the cheapest listing, whatever its state) and never TCGplayer (USD).
+  // - The "-holo" figures price the foil version of a card that also has a normal one,
+  //   so they are used only for cards that have no normal version.
+  function extractMarketPrice(card) {
+    const prices = card?.pricing?.cardmarket;
+    if (!prices || (prices.unit && prices.unit !== "EUR")) return null;
+
+    const fromSuffix = (suffix) => median([
+      prices[`trend${suffix}`],
+      prices[`avg7${suffix}`],
+      prices[`avg30${suffix}`]
+    ]) || median([prices[`avg${suffix}`]]);
+
+    const price = fromSuffix("") || (card?.variants?.normal === false ? fromSuffix("-holo") : null);
+    return price ? Math.round(price * 100) / 100 : null;
+  }
+
+  function extractPricingUnit() {
+    return "EUR";
   }
 
   window.BuylistCatalogHelpers = {

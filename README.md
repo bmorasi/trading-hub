@@ -3,7 +3,7 @@
 This workspace contains a Proof of Concept for a Shopify buylist tool that:
 
 - Lets customers search Pokemon cards from TCGDex
-- Reads market value from TCGDex card data when available
+- Prices cards from Cardmarket (EUR) data in TCGDex: the middle value of trend, 7-day and 30-day average
 - Prices each card by condition, with a cash and a store-credit payout (see below)
 - Builds a buylist basket with quantity and subtotal, and requires photos for cards worth €5 or more
 - Sends the purchase request by email and can generate a PDF report
@@ -31,6 +31,22 @@ Defined in `assets/js/core/pricing.js`. Value is a share of the market price; pa
 - `assets/js/core/pricing.js`: Condition and pricing helpers
 - `assets/js/ui/basket-ui.js`: Basket row UI component builder
 - `shopify-section-buylist.liquid`: Shopify section scaffold
+
+## Cardmarket price file
+
+TCGdex sometimes links several versions of a card (for example a special art) to
+one Cardmarket listing. The app leaves those unpriced unless
+`assets/data/cardmarket-prices.json` has a price for them.
+
+```
+node scripts/build-cardmarket-prices.mjs
+```
+
+- Needs Node 18 or newer, no packages. It covers sets released in the last 365 days; use `--sets=me06` to choose.
+- `.github/workflows/cardmarket-prices.yml` runs it daily and commits the file.
+- The app ignores a file older than 3 days.
+- Standalone page and widget: the file is found next to the scripts. Shopify: host it publicly (CORS allowed) and enter its address in the section setting "Cardmarket price file URL".
+- Before publishing these prices, confirm with Cardmarket that this use of their data is allowed.
 
 ## Run locally
 
@@ -70,4 +86,4 @@ The widget creates its own markup, loads the stylesheet and application files re
 
 ## Important
 
-TCGDex data shape may vary by language/endpoint version. The adapter in `assets/js/app.js` includes safe fallbacks for extracting market values.
+The price rule is `extractMarketPrice` in `assets/js/core/catalog-helpers.js`. Cards without usable Cardmarket data show no price.

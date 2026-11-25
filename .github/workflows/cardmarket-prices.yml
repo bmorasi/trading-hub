@@ -1,0 +1,32 @@
+name: Update Cardmarket prices
+
+on:
+  schedule:
+    # Daily, after Cardmarket publishes its price guide.
+    - cron: "30 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cardmarket-prices
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/build-cardmarket-prices.mjs
+      - name: Commit the new price file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/data/cardmarket-prices.json
+          git diff --cached --quiet || git commit -m "Update Cardmarket prices"
+          git push

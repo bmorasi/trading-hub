@@ -1,4 +1,7 @@
 (() => {
+  // Where this script was loaded from, to find the price file next to it.
+  const SCRIPT_URL = document.currentScript?.src || "";
+  const PRICE_FILE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 3;
   const API_BASE = "https://api.tcgdex.net/v2/en";
   const ASSET_BASE = "https://assets.tcgdex.net/en";
   const DEFAULT_VENDOR_EMAIL = "vendor@example.com";
@@ -38,16 +41,18 @@
   }
   const CATALOG_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
   const SETS_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
-  const CARD_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
+  const CARD_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
   const PAGE_SIZE = 60;
   const HYDRATE_LIMIT = 60;
 
   const rootEl = document.querySelector("[data-buylist-root]");
   const searchInput = document.getElementById("card-search");
+  const searchLabelEl = document.getElementById("search-label");
+  const viewTitleEl = document.getElementById("view-title");
+  const howStepsEl = document.getElementById("how-steps");
+  const basketEmptyEl = document.getElementById("basket-empty");
   const setFilterEl = document.getElementById("set-filter");
   const sortFieldEl = document.getElementById("sort-field");
-  const sortDirectionEl = document.getElementById("sort-direction");
-  const groupBySetEl = document.getElementById("group-by-set");
   const sortRowEl = document.getElementById("card-sort-row");
   const clearSearchBtn = document.getElementById("clear-search");
   const changeSetBtn = document.getElementById("change-set");
@@ -65,10 +70,9 @@
   const resultsEl = document.getElementById("search-results");
   const resultsSentinelEl = document.getElementById("results-sentinel");
   const basketEl = document.getElementById("basket-items");
-  const sumMarketEl = document.getElementById("sum-market");
   const sumValueEl = document.getElementById("sum-value");
-  const sumCashEl = document.getElementById("sum-cash");
-  const sumCreditEl = document.getElementById("sum-credit");
+  const sumPayoutEl = document.getElementById("sum-payout");
+  const sumPayoutLabelEl = document.getElementById("sum-payout-label");
   const resetBasketBtn = document.getElementById("reset-basket");
   const sendOfferEmailBtn = document.getElementById("send-offer-email");
   const generatePdfReportBtn = document.getElementById("generate-pdf-report");
@@ -101,6 +105,7 @@
   let conditionModalEl = null;
   let conditionModalRows = new Map();
   let conditionModalDefectsEl = null;
+  let conditionModalReturnFocusEl = null;
   let statusToastEl = null;
   let statusToastTimer = null;
   let agreementReferenceId = "";
@@ -164,8 +169,6 @@
       searchInput,
       setFilterEl,
       sortFieldEl,
-      sortDirectionEl,
-      groupBySetEl,
       clearSearchBtn,
       openCartBtn
     ];
@@ -322,6 +325,8 @@
     modal.classList.remove("hidden");
     modal.style.display = "grid";
     modal.setAttribute("aria-hidden", "false");
+    conditionModalReturnFocusEl = document.activeElement;
+    modal.querySelector(".condition-modal-close").focus();
   }
 
   function closeConditionMatrixModal() {
@@ -330,6 +335,8 @@
     conditionModalEl.classList.add("hidden");
     conditionModalEl.style.display = "none";
     conditionModalEl.setAttribute("aria-hidden", "true");
+    if (conditionModalReturnFocusEl?.isConnected) conditionModalReturnFocusEl.focus();
+    conditionModalReturnFocusEl = null;
   }
 
   function isConditionMatrixModalOpen() {
@@ -342,15 +349,15 @@
   }
 
   function keySets() {
-    return "tcgdex:sets:v1";
+    return "tcgdex:sets:v2";
   }
 
   function keySetCards(setId) {
-    return `tcgdex:set:${String(setId || "").trim().toLowerCase()}:cards:v1`;
+    return `tcgdex:set:${String(setId || "").trim().toLowerCase()}:cards:v2`;
   }
 
   function keyCard(id) {
-    return `tcgdex:c:${id}`;
+    return `tcgdex:c:v2:${id}`;
   }
 
   function cacheRead(key, ttlMs) {
@@ -515,8 +522,7 @@
         logo: set.logo || set.images?.logo || ""
       }))
       .filter((set) => !isIgnoredPocketSet(set))
-      .filter((set) => set.id && set.name)
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .filter((set) => set.id && set.name);
   }
 
   async function dedupedFetch(url, init = {}) {
@@ -554,12 +560,33 @@
     return cards;
   }
 
+  // Newest release first. Sets without a known date go last, by name.
+  function compareSetsByRelease(a, b) {
+    return (b.releaseDate || "").localeCompare(a.releaseDate || "") || a.name.localeCompare(b.name);
+  }
+
+  // The REST set list has no release dates, so they come from the GraphQL endpoint.
+  async function loadSetReleaseDates() {
+    try {
+      const json = await dedupedFetch(`${API_BASE.replace(/\/en$/, "")}/graphql`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: "{ sets { id releaseDate } }" })
+      });
+      return new Map((json?.data?.sets || []).map((set) => [set.id, set.releaseDate || ""]));
+    } catch (error) {
+      console.warn("TCGdex release dates unavailable, listing sets by name:", error);
+      return new Map();
+    }
+  }
+
   async function loadSets() {
     const storageHit = cacheRead(keySets(), SETS_CACHE_TTL_MS);
     if (storageHit && storageHit.length) {
       return storageHit;
     }
 
+    const releaseDatesRequest = loadSetReleaseDates();
     const endpoints = [
       `${API_BASE}/sets`,
       `${API_BASE}/sets?itemsPerPage=250`
@@ -570,8 +597,13 @@
         const json = await dedupedFetch(url);
         const normalized = normalizeSetsPayload(json);
         if (normalized.length) {
-          cacheWrite(keySets(), normalized);
-          return normalized;
+          const releaseDates = await releaseDatesRequest;
+          const sets = normalized
+            .map((set) => ({ ...set, releaseDate: releaseDates.get(set.id) || "" }))
+            .sort(compareSetsByRelease);
+          // Only cache a dated list, so a failed date request is retried next visit.
+          if (releaseDates.size) cacheWrite(keySets(), sets);
+          return sets;
         }
       } catch {
         // Try next endpoint format.
@@ -608,31 +640,67 @@
         source: "tcgdex"
       };
 
-      const sdkCard = typeof window.getTCGDXCard === "function" ? await window.getTCGDXCard(cardId) : null;
-      if (sdkCard) {
-        const sdkImageUrl = typeof sdkCard?.getImageURL === "function" ? sdkCard.getImageURL("low", "webp") : sdkCard?.image || "";
-
-        detail.name = sdkCard?.name || detail.name;
-        detail.set = sdkCard?.set || detail.set || {};
-        detail.setId = sdkCard?.set?.id || detail.setId || detail.set?.id || "";
-        detail.setName = sdkCard?.set?.name || detail.setName || detail.set?.name || "";
-        detail.image = sdkImageUrl || detail.image;
-        detail.imageCandidates = sdkImageUrl ? [sdkImageUrl] : detail.imageCandidates;
-        detail.market = extractMarketPrice(sdkCard) || detail.market;
-        detail.unit = extractPricingUnit(sdkCard) || detail.unit;
-        detail.pricing = {
-          ...(detail.pricing || {}),
-          ...(sdkCard?.pricing || {})
-        };
-        detail.source = "tcgdex-sdk";
-      }
-
       cardCache.set(cardId, { ts: now(), value: detail });
       cacheWrite(storageKey, detail);
       return detail;
     } catch {
       return null;
     }
+  }
+
+  // TCGdex sometimes links an alternate-art or secret-rare card to the Cardmarket
+  // product of the regular card with the same name, which gives it the regular
+  // card's price. Only the lowest-numbered card keeps a shared product's price;
+  // the others are left unpriced. If that cannot be checked, no price is given.
+  // Prices from scripts/build-cardmarket-prices.mjs. The page works without the
+  // file; a missing or outdated one just leaves those cards unpriced.
+  let cardmarketPricesRequest = null;
+
+  function loadCardmarketPrices() {
+    if (!cardmarketPricesRequest) {
+      const configured = String(rootEl?.getAttribute("data-prices-url") || "").trim();
+      const url = configured || (SCRIPT_URL ? new URL("../data/cardmarket-prices.json", SCRIPT_URL).href : "");
+      cardmarketPricesRequest = !url ? Promise.resolve({}) : fetch(url, { cache: "no-cache" })
+        .then((response) => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.json();
+        })
+        .then((file) => {
+          if (!(now() - Date.parse(file.generatedAt) < PRICE_FILE_MAX_AGE_MS)) {
+            throw new Error("price file is more than 3 days old");
+          }
+          return file.prices || {};
+        })
+        .catch((error) => {
+          console.warn("Cardmarket price file not used:", error);
+          return {};
+        });
+    }
+    return cardmarketPricesRequest;
+  }
+
+  async function getVerifiedCardDetails(card) {
+    const [detail, filePrices] = await Promise.all([getCardDetails(card.id), loadCardmarketPrices()]);
+    const filePrice = Number(filePrices[card.id]?.price);
+    if (filePrice > 0) return { ...detail, market: filePrice, needsQuote: false };
+    const productId = detail?.pricing?.cardmarket?.idProduct;
+    if (!productId) return detail;
+
+    const lowerNumbered = catalog.filter((other) => other.id !== card.id
+      && other.setId === card.setId
+      && other.name === card.name
+      && String(other.localId).localeCompare(String(card.localId), undefined, { numeric: true }) < 0);
+    const others = await Promise.all(lowerNumbered.map((other) => getCardDetails(other.id)));
+    const unverified = others.some((other) => !other || other.pricing?.cardmarket?.idProduct === productId);
+    return unverified ? { ...detail, market: null, needsQuote: true } : detail;
+  }
+
+  function tileOfferText(card) {
+    if (Number.isFinite(card.market) && card.market > 0) {
+      return `Payout (Near Mint): ${fmtEUR.format(cashOfferByCondition(card.market, "near_mint"))}`;
+    }
+    if (card.needsQuote) return "Price not available";
+    return card.priceResolved ? "Payout: unavailable" : "Payout: pending value";
   }
 
   function getRowPhotoFiles(row) {
@@ -727,7 +795,7 @@
       empty.className = "set-grid-empty";
       empty.textContent = "No sets match your search.";
       setGridEl.appendChild(empty);
-      updateCatalogCount(0, sets.length);
+      if (!activeSet) updateCatalogCount(0, sets.length, "sets");
       return;
     }
 
@@ -757,21 +825,23 @@
       const title = document.createElement("strong");
       title.textContent = setItem.name || setItem.id;
 
-      const meta = document.createElement("small");
-      meta.textContent = setItem.id;
-
-      btn.append(media, title, meta);
+      btn.append(media, title);
       btn.addEventListener("click", async () => {
         if (setFilterEl) {
           setFilterEl.value = setItem.id;
         }
+        if (searchInput) searchInput.value = "";
         await handleSetSelection(setItem.id);
       });
       fragment.appendChild(btn);
     }
 
     setGridEl.appendChild(fragment);
-    updateCatalogCount(filteredSets.length, sets.length);
+    if (!activeSet) updateCatalogCount(filteredSets.length, sets.length, "sets");
+  }
+
+  function updateClearButton() {
+    if (clearSearchBtn) clearSearchBtn.classList.toggle("hidden", !getSearchValue());
   }
 
   function updateStepView() {
@@ -792,27 +862,32 @@
     if (sortRowEl) {
       sortRowEl.classList.toggle("hidden", !hasSet);
     }
+    if (howStepsEl) {
+      howStepsEl.classList.toggle("hidden", hasSet);
+    }
+    if (viewTitleEl) {
+      viewTitleEl.textContent = hasSet
+        ? setFilterEl.options[setFilterEl.selectedIndex].text
+        : "Choose a set";
+    }
+    if (searchLabelEl) {
+      searchLabelEl.textContent = hasSet ? "Search cards in this set" : "Search sets";
+    }
     if (searchInput) {
       searchInput.placeholder = hasSet
-        ? "Search cards in selected set..."
-        : "Search sets: Scarlet & Violet, Obsidian Flames, 151...";
+        ? "Card name or number"
+        : "Set name, for example Obsidian Flames";
     }
+    updateClearButton();
   }
 
   function cardDomKey(card) {
     return `${card.id || ""}|${card.setId || ""}|${card.localId || ""}`;
   }
 
-  function currentSortField() {
-    return sortFieldEl ? sortFieldEl.value : "name";
-  }
-
-  function currentSortDirection() {
-    return sortDirectionEl ? sortDirectionEl.value : "asc";
-  }
-
-  function isGroupBySet() {
-    return Boolean(groupBySetEl && groupBySetEl.checked);
+  function currentSort() {
+    const [field, direction] = (sortFieldEl ? sortFieldEl.value : "name:asc").split(":");
+    return { field, direction };
   }
 
   function compareCards(a, b, field, direction) {
@@ -827,8 +902,8 @@
       const bPrice = Number(b.market) || 0;
       diff = aPrice - bPrice;
       if (diff === 0) diff = a.name.localeCompare(b.name);
-    } else if (field === "set") {
-      diff = (a.setName || "").localeCompare(b.setName || "");
+    } else if (field === "number") {
+      diff = String(a.localId || "").localeCompare(String(b.localId || ""), undefined, { numeric: true });
       if (diff === 0) diff = a.name.localeCompare(b.name);
     } else {
       diff = a.name.localeCompare(b.name);
@@ -839,8 +914,7 @@
   }
 
   function sortCards(cards) {
-    const field = currentSortField();
-    const direction = currentSortDirection();
+    const { field, direction } = currentSort();
     return [...cards].sort((a, b) => compareCards(a, b, field, direction));
   }
 
@@ -850,7 +924,6 @@
     const image = fragment.querySelector(".result-image");
     const title = fragment.querySelector(".result-title");
     const meta = fragment.querySelector(".result-meta");
-    const market = fragment.querySelector(".market");
     const offer = fragment.querySelector(".offer");
     const addBtn = fragment.querySelector(".add-btn");
 
@@ -861,18 +934,7 @@
     if (title) title.textContent = card.name;
     if (meta) meta.textContent = cardMeta(card);
 
-    if (market && offer) {
-      if (Number.isFinite(card.market) && card.market > 0) {
-        market.textContent = `Market: ${fmtEUR.format(card.market)}`;
-        offer.textContent = `Payout (Near Mint): ${fmtEUR.format(cashOfferByCondition(card.market, "near_mint"))}`;
-      } else if (card.priceResolved) {
-        market.textContent = "Market: no data";
-        offer.textContent = "Payout: unavailable";
-      } else {
-        market.textContent = "Market: unavailable";
-        offer.textContent = "Payout: pending value";
-      }
-    }
+    if (offer) offer.textContent = tileOfferText(card);
 
     if (addBtn) {
       addBtn.addEventListener("click", () => addCardToBasket(card));
@@ -894,7 +956,6 @@
     observer = new IntersectionObserver((entries) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
-        if (isGroupBySet()) continue;
         appendNextPage();
       }
     }, {
@@ -907,7 +968,7 @@
   }
 
   function appendNextPage() {
-    if (!resultsEl || !resultTemplate || !activeCards.length || isGroupBySet()) return;
+    if (!resultsEl || !resultTemplate || !activeCards.length) return;
 
     const start = renderedCardCount;
     const end = Math.min(start + PAGE_SIZE, activeCards.length);
@@ -944,9 +1005,15 @@
 
   function setCartOpen(isOpen) {
     if (!cartDrawerEl || !cartOverlayEl) return;
+    const wasOpen = !cartDrawerEl.classList.contains("hidden");
     cartDrawerEl.classList.toggle("hidden", !isOpen);
     cartOverlayEl.classList.toggle("hidden", !isOpen);
     cartDrawerEl.setAttribute("aria-hidden", isOpen ? "false" : "true");
+    // Keep keyboard focus inside the open basket and hide the button that would cover it.
+    if (rootEl) rootEl.inert = isOpen;
+    if (openCartBtn) openCartBtn.classList.toggle("hidden", isOpen);
+    if (isOpen) closeCartBtn?.focus();
+    else if (wasOpen) openCartBtn?.focus();
   }
 
   function getActiveSetFilter() {
@@ -962,10 +1029,11 @@
         id: set.id,
         name: set.name || set.id,
         symbol: set.symbol || "",
-        logo: set.logo || ""
+        logo: set.logo || "",
+        releaseDate: set.releaseDate || ""
       }))
       .filter((set) => set.id)
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort(compareSetsByRelease);
 
     allSets = options;
 
@@ -973,7 +1041,7 @@
 
     const placeholder = document.createElement("option");
     placeholder.value = "";
-    placeholder.textContent = "Choose a set first";
+    placeholder.textContent = "Choose a set";
     setFilterEl.appendChild(placeholder);
 
     for (const optionData of options) {
@@ -1080,54 +1148,22 @@
     if (!resultsEl || !resultTemplate) return;
 
     resultsEl.innerHTML = "";
-    if (!cards.length) return;
-
     activeCards = [...cards];
     renderedCardCount = 0;
+    if (!cards.length) {
+      const empty = document.createElement("p");
+      empty.className = "set-grid-empty";
+      empty.textContent = "No cards match your search.";
+      resultsEl.appendChild(empty);
+      return;
+    }
+
     appendNextPage();
   }
 
-  function renderGroupedBySet(cards) {
-    if (!resultsEl || !resultTemplate) return;
-    resultsEl.innerHTML = "";
-    if (!cards.length) return;
-
-    const groups = new Map();
-    for (const card of cards) {
-      const key = card.setName || "Unknown Set";
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(card);
-    }
-
-    const setNames = [...groups.keys()].sort((a, b) => {
-      const diff = a.localeCompare(b);
-      return currentSortDirection() === "desc" ? -diff : diff;
-    });
-
-    for (const setName of setNames) {
-      const section = document.createElement("div");
-      section.className = "set-group";
-
-      const title = document.createElement("h3");
-      title.className = "set-group-title";
-      title.textContent = setName;
-
-      const list = document.createElement("div");
-      list.className = "results-grid";
-
-      const sortedCards = sortCards(groups.get(setName));
-      for (const card of sortedCards) {
-        appendCardNode(card, list);
-      }
-
-      section.append(title, list);
-      resultsEl.appendChild(section);
-    }
-  }
-
-  function updateCatalogCount(visible, total) {
+  function updateCatalogCount(visible, total, noun = "cards") {
     if (!catalogCountEl) return;
-    catalogCountEl.textContent = `${visible} shown of ${total}`;
+    catalogCountEl.textContent = total ? `Showing ${visible} of ${total} ${noun}` : "";
   }
 
   function basketRows() {
@@ -1159,24 +1195,22 @@
   }
 
   function renderBasket() {
-    if (!basketEl || !sumMarketEl || !sumValueEl || !sumCashEl || !sumCreditEl) return;
+    if (!basketEl || !sumValueEl || !sumPayoutEl) return;
 
     basketEl.innerHTML = "";
 
     const rows = basketRows();
-    let marketTotal = 0;
     let valueTotal = 0;
-    let cashTotal = 0;
-    let creditTotal = 0;
+    let payoutTotal = 0;
+    const payout = selectedPayoutMethod();
 
     for (const row of rows) {
-      marketTotal += row.market * row.quantity;
       valueTotal += row.subtotalValue;
-      cashTotal += row.subtotalCash;
-      creditTotal += row.subtotalCredit;
+      payoutTotal += row[payout.subtotalKey];
 
       const li = createBasketItemElement({
         row,
+        payout,
         fmtEUR,
         photoThreshold: PHOTO_THRESHOLD_EUR,
         conditionProfiles: CONDITION_PROFILES,
@@ -1191,10 +1225,9 @@
       basketEl.appendChild(li);
     }
 
-    sumMarketEl.textContent = fmtEUR.format(marketTotal);
     sumValueEl.textContent = fmtEUR.format(valueTotal);
-    sumCashEl.textContent = fmtEUR.format(cashTotal);
-    sumCreditEl.textContent = fmtEUR.format(creditTotal);
+    sumPayoutEl.textContent = fmtEUR.format(payoutTotal);
+    if (sumPayoutLabelEl) sumPayoutLabelEl.textContent = payout.label;
 
     if (openCartBtn) {
       const countText = `Basket (${basketItemCount()})`;
@@ -1206,11 +1239,17 @@
       }
     }
     if (quickOfferEl) {
-      quickOfferEl.textContent = `Payout total: ${fmtEUR.format(cashTotal)}`;
+      quickOfferEl.textContent = `${payout.label} total: ${fmtEUR.format(payoutTotal)}`;
+      quickOfferEl.classList.toggle("hidden", !rows.length);
     }
 
     if (vendorEmailNoteEl) {
       vendorEmailNoteEl.textContent = `CB email: ${getVendorEmail()}`;
+    }
+
+    if (basketEmptyEl) basketEmptyEl.classList.toggle("hidden", rows.length > 0);
+    for (const button of [resetBasketBtn, sendOfferEmailBtn, generatePdfReportBtn]) {
+      if (button) button.disabled = !rows.length;
     }
 
     updatePhotoRequirementHint(rows);
@@ -1222,9 +1261,10 @@
 
     let market = card.market;
     if (!Number.isFinite(market) || market <= 0) {
-      const detail = await getCardDetails(card.id);
+      const detail = await getVerifiedCardDetails(card);
       market = detail?.market || 0;
       card.priceResolved = true;
+      card.needsQuote = Boolean(detail?.needsQuote);
 
       if (detail?.name) {
         card.name = detail.name;
@@ -1270,7 +1310,7 @@
     }
 
     renderBasket();
-    setStatus(`${card.name} added at ${fmtEUR.format(cashOfferByCondition(market, "near_mint"))} cash each (Near Mint).`);
+    setStatus(`${card.name} added to the basket.`);
   }
 
   async function processAddQueue() {
@@ -1310,9 +1350,10 @@
 
     await Promise.allSettled(
       toHydrate.map(async (card) => {
-        const detail = await getCardDetails(card.id);
+        const detail = await getVerifiedCardDetails(card);
         card.priceResolved = true;
         if (!detail) return;
+        card.needsQuote = Boolean(detail.needsQuote);
 
         if (detail?.name) {
           card.name = detail.name;
@@ -1349,42 +1390,25 @@
       lastQuery === queryAtStart &&
       getActiveSetFilter() === setAtStart
     ) {
-      const filtered = catalog.filter((card) => {
-        const matchesText = !lastQuery || setFilterText(card).includes(lastQuery);
-        const matchesSet = !setAtStart || card.setId === setAtStart;
-        return matchesText && matchesSet;
-      });
+      for (const card of cards) {
+        const key = cardDomKey(card);
+        const nodes = resultsEl ? resultsEl.querySelectorAll(`[data-card-key="${key}"]`) : [];
+        for (const node of nodes) {
+          const titleEl = node.querySelector(".result-title");
+          const metaEl = node.querySelector(".result-meta");
+          const imageEl = node.querySelector(".result-image");
+          const offerEl = node.querySelector(".offer");
 
-      const sorted = sortCards(filtered);
-      if (isGroupBySet()) {
-        renderGroupedBySet(sorted);
-        updateCatalogCount(sorted.length, sorted.length);
-      } else {
-        for (const card of cards) {
-          const key = cardDomKey(card);
-          const nodes = resultsEl ? resultsEl.querySelectorAll(`[data-card-key="${key}"]`) : [];
-          for (const node of nodes) {
-            const titleEl = node.querySelector(".result-title");
-            const metaEl = node.querySelector(".result-meta");
-            const imageEl = node.querySelector(".result-image");
-            const marketEl = node.querySelector(".market");
-            const offerEl = node.querySelector(".offer");
-
-            if (titleEl) {
-              titleEl.textContent = card.name || titleEl.textContent;
-            }
-            if (metaEl) {
-              metaEl.textContent = cardMeta(card);
-            }
-            if (imageEl) {
-              bindImageWithFallback(imageEl, card, node);
-            }
-            if (!marketEl || !offerEl) continue;
-            if (Number.isFinite(card.market) && card.market > 0) {
-              marketEl.textContent = `Market: ${fmtEUR.format(card.market)}`;
-              offerEl.textContent = `Payout (Near Mint): ${fmtEUR.format(cashOfferByCondition(card.market, "near_mint"))}`;
-            }
+          if (titleEl) {
+            titleEl.textContent = card.name || titleEl.textContent;
           }
+          if (metaEl) {
+            metaEl.textContent = cardMeta(card);
+          }
+          if (imageEl) {
+            bindImageWithFallback(imageEl, card, node);
+          }
+          if (offerEl) offerEl.textContent = tileOfferText(card);
         }
       }
     }
@@ -1418,24 +1442,12 @@
     });
 
     const sorted = sortCards(filtered);
-    if (isGroupBySet()) {
-      activeCards = [...sorted];
-      renderedCardCount = sorted.length;
-      renderGroupedBySet(sorted);
-      updateCatalogCount(sorted.length, sorted.length);
-    } else {
-      renderSearchResults(sorted);
-      updateCatalogCount(renderedCardCount, sorted.length);
-    }
-
-    if (isGroupBySet()) {
-      hydrateVisiblePrices(sorted, qNormalized, activeSet, renderToken).catch(() => {
-        // Best-effort hydration only.
-      });
-    }
+    renderSearchResults(sorted);
+    updateCatalogCount(renderedCardCount, sorted.length);
   }
 
   function debounceSearch() {
+    updateClearButton();
     if (searchTimer) {
       clearTimeout(searchTimer);
     }
@@ -2015,6 +2027,7 @@
 
     if (setFilterEl) {
       setFilterEl.addEventListener("change", async () => {
+        if (searchInput) searchInput.value = "";
         await handleSetSelection(setFilterEl.value);
       });
     }
@@ -2035,22 +2048,12 @@
       sortFieldEl.addEventListener("change", runSearchFromInput);
     }
 
-    if (sortDirectionEl) {
-      sortDirectionEl.addEventListener("change", runSearchFromInput);
-    }
-
-    if (groupBySetEl) {
-      groupBySetEl.addEventListener("change", runSearchFromInput);
-    }
-
     if (clearSearchBtn) {
       clearSearchBtn.addEventListener("click", () => {
         if (searchInput) searchInput.value = "";
-        if (sortFieldEl) sortFieldEl.value = "name";
-        if (sortDirectionEl) sortDirectionEl.value = "asc";
-        if (groupBySetEl) groupBySetEl.checked = false;
-        runSearchFromInput();
-        setStatus("Filters cleared.");
+        if (getActiveSetFilter()) runSearchFlow("");
+        else renderSetGrid("");
+        updateClearButton();
         if (searchInput) searchInput.focus();
       });
     }
@@ -2082,6 +2085,10 @@
         setCartOpen(false);
       }
     });
+
+    if (payoutMethodEl) {
+      payoutMethodEl.addEventListener("change", renderBasket);
+    }
 
     if (resetBasketBtn) {
       resetBasketBtn.addEventListener("click", () => {

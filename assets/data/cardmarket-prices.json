@@ -1,0 +1,255 @@
+{
+ "generatedAt": "2026-11-25T23:16:47.524Z",
+ "priceGuideDate": "2026-11-25T02:42:31+0100",
+ "currency": "EUR",
+ "prices": {
+  "me06-003": {
+   "price": 0.03,
+   "idProduct": 918812
+  },
+  "me06-104": {
+   "price": 1.72,
+   "idProduct": 918940
+  },
+  "me06-011": {
+   "price": 0.43,
+   "idProduct": 918820
+  },
+  "me06-118": {
+   "price": 2.72,
+   "idProduct": 918957
+  },
+  "me06-135": {
+   "price": 17.46,
+   "idProduct": 918979
+  },
+  "me06-012": {
+   "price": 0.04,
+   "idProduct": 918821
+  },
+  "me06-105": {
+   "price": 6.73,
+   "idProduct": 918941
+  },
+  "me06-018": {
+   "price": 0.03,
+   "idProduct": 918832
+  },
+  "me06-106": {
+   "price": 9.51,
+   "idProduct": 918943
+  },
+  "me06-021": {
+   "price": 0.06,
+   "idProduct": 918836
+  },
+  "me06-107": {
+   "price": 3.17,
+   "idProduct": 918944
+  },
+  "me06-023": {
+   "price": 0.33,
+   "idProduct": 918838
+  },
+  "me06-119": {
+   "price": 1.48,
+   "idProduct": 918958
+  },
+  "me06-029": {
+   "price": 0.33,
+   "idProduct": 918845
+  },
+  "me06-120": {
+   "price": 1.52,
+   "idProduct": 918959
+  },
+  "me06-031": {
+   "price": 0.03,
+   "idProduct": 918847
+  },
+  "me06-108": {
+   "price": 2.88,
+   "idProduct": 918945
+  },
+  "me06-033": {
+   "price": 0.43,
+   "idProduct": 918849
+  },
+  "me06-121": {
+   "price": 3.17,
+   "idProduct": 918960
+  },
+  "me06-136": {
+   "price": 82.09,
+   "idProduct": 918980
+  },
+  "me06-036": {
+   "price": 0.04,
+   "idProduct": 918853
+  },
+  "me06-109": {
+   "price": 2.1,
+   "idProduct": 918947
+  },
+  "me06-047": {
+   "price": 0.47,
+   "idProduct": 918868
+  },
+  "me06-122": {
+   "price": 2.84,
+   "idProduct": 918961
+  },
+  "me06-137": {
+   "price": 19.75,
+   "idProduct": 918981
+  },
+  "me06-048": {
+   "price": 0.02,
+   "idProduct": 918869
+  },
+  "me06-110": {
+   "price": 2.43,
+   "idProduct": 918948
+  },
+  "me06-053": {
+   "price": 0.05,
+   "idProduct": 918876
+  },
+  "me06-111": {
+   "price": 17.24,
+   "idProduct": 918949
+  },
+  "me06-066": {
+   "price": 0.03,
+   "idProduct": 918891
+  },
+  "me06-112": {
+   "price": 6.15,
+   "idProduct": 918950
+  },
+  "me06-068": {
+   "price": 0.05,
+   "idProduct": 918893
+  },
+  "me06-113": {
+   "price": 3.25,
+   "idProduct": 918952
+  },
+  "me06-069": {
+   "price": 0.45,
+   "idProduct": 918895
+  },
+  "me06-123": {
+   "price": 2.47,
+   "idProduct": 918962
+  },
+  "me06-078": {
+   "price": 0.04,
+   "idProduct": 918906
+  },
+  "me06-114": {
+   "price": 20.2,
+   "idProduct": 918953
+  },
+  "me06-080": {
+   "price": 0.04,
+   "idProduct": 918908
+  },
+  "me06-115": {
+   "price": 5.16,
+   "idProduct": 918954
+  },
+  "me06-082": {
+   "price": 0.05,
+   "idProduct": 918910
+  },
+  "me06-116": {
+   "price": 4.9,
+   "idProduct": 918955
+  },
+  "me06-083": {
+   "price": 0.03,
+   "idProduct": 918911
+  },
+  "me06-117": {
+   "price": 12.02,
+   "idProduct": 918956
+  },
+  "me06-084": {
+   "price": 3.15,
+   "idProduct": 918912
+  },
+  "me06-138": {
+   "price": 274.19,
+   "idProduct": 918982
+  },
+  "me06-141": {
+   "price": 185.9,
+   "idProduct": 918985
+  },
+  "me06-088": {
+   "price": 3.08,
+   "idProduct": 918916
+  },
+  "me06-124": {
+   "price": 6.7,
+   "idProduct": 918963
+  },
+  "me06-089": {
+   "price": 0.05,
+   "idProduct": 918917
+  },
+  "me06-125": {
+   "price": 2.62,
+   "idProduct": 918964
+  },
+  "me06-139": {
+   "price": 12.32,
+   "idProduct": 918983
+  },
+  "me06-091": {
+   "price": 0.04,
+   "idProduct": 918919
+  },
+  "me06-127": {
+   "price": 1.19,
+   "idProduct": 918966
+  },
+  "me06-092": {
+   "price": 0.04,
+   "idProduct": 918920
+  },
+  "me06-128": {
+   "price": 1.66,
+   "idProduct": 918967
+  },
+  "me06-096": {
+   "price": 0.11,
+   "idProduct": 918926
+  },
+  "me06-097": {
+   "price": 0.1,
+   "idProduct": 918927
+  },
+  "me06-102": {
+   "price": 0.04,
+   "idProduct": 918934
+  },
+  "me06-130": {
+   "price": 1.86,
+   "idProduct": 918969
+  },
+  "me06-103": {
+   "price": 0.05,
+   "idProduct": 918935
+  },
+  "me06-131": {
+   "price": 3.43,
+   "idProduct": 918970
+  },
+  "me06-140": {
+   "price": 19.88,
+   "idProduct": 918984
+  }
+ }
+}
