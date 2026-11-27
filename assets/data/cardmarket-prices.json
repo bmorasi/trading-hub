@@ -1,6 +1,6 @@
 {
- "generatedAt": "2026-11-26T05:32:23.019Z",
- "priceGuideDate": "2026-11-25T02:42:31+0100",
+ "generatedAt": "2026-11-27T05:32:47.341Z",
+ "priceGuideDate": "2026-11-26T09:08:54+0100",
  "currency": "EUR",
  "prices": {
   "me06-003": {
@@ -80,7 +80,7 @@
    "idProduct": 918960
   },
   "me06-136": {
-   "price": 82.09,
+   "price": 81.4,
    "idProduct": 918980
   },
   "me06-036": {
